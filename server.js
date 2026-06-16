@@ -8,77 +8,85 @@ require('dotenv').config();
 const app = express();
 
 // ============================================
-// 📁 DYNAMIC UPLOADS PATH
+// 📁 UPLOADS PATH
 // ============================================
 const uploadPath = process.env.UPLOAD_PATH || './uploads';
 const uploadDir = path.join(__dirname, uploadPath);
 
-// Create uploads folder if not exists
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
-  console.log('📁 Uploads folder created at:', uploadDir);
 }
 
 // ============================================
 // 🔧 MIDDLEWARE
 // ============================================
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    process.env.FRONTEND_URL,
-    'https://*.vercel.app',
-    'https://*.vercel.app/*'
-  ],
-  credentials: true
+  origin: '*',  // ✅ Sab allow - Vercel ke liye
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Serve static files from uploads
 app.use('/uploads', express.static(uploadDir));
 
 // ============================================
-// 🗄️ DATABASE CONNECTION
+// 🗄️ DATABASE CONNECTION - with better error handling
 // ============================================
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('✅ MongoDB Connected to Atlas');
-  console.log(`📦 Database: ${mongoose.connection.db.databaseName}`);
-})
-.catch(err => {
-  console.error('❌ MongoDB Error:', err);
-  console.error('Please check your MONGODB_URI in .env file');
-});
+if (process.env.MONGODB_URI) {
+  mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000, // 5 second timeout
+  })
+  .then(() => {
+    console.log('✅ MongoDB Connected to Atlas');
+  })
+  .catch(err => {
+    console.error('❌ MongoDB Error:', err.message);
+  });
+} else {
+  console.warn('⚠️ MONGODB_URI not set');
+}
 
 // ============================================
 // 🚀 ROUTES
 // ============================================
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/customers', require('./routes/customers'));
-app.use('/api/bills', require('./routes/bills'));
-app.use('/api/products', require('./routes/products'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/dashboard', require('./routes/dashboard'));
-app.use('/api/settings', require('./routes/settings'));
-
-// Public bill route (no auth needed for QR scan)
-app.use('/bill', require('./routes/publicBill'));
+try {
+  app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/customers', require('./routes/customers'));
+  app.use('/api/bills', require('./routes/bills'));
+  app.use('/api/products', require('./routes/products'));
+  app.use('/api/reports', require('./routes/reports'));
+  app.use('/api/dashboard', require('./routes/dashboard'));
+  app.use('/api/settings', require('./routes/settings'));
+  app.use('/bill', require('./routes/publicBill'));
+} catch (err) {
+  console.error('❌ Route Error:', err.message);
+}
 
 // ============================================
-// 🏠 ROOT & HEALTH ROUTES
+// 🏠 HEALTH CHECK - Must work even if DB fails
 // ============================================
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Saad bin shalwah API Running',
+    shop: process.env.SHOP_NAME || 'Al Noor Saad bin shalwah',
+    environment: process.env.NODE_ENV || 'production',
+    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'Al Noor Saad bin shalwah API',
     version: '1.0.0',
     shop: process.env.SHOP_NAME || 'Saad bin shalwah',
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV || 'production',
     endpoints: {
       health: '/api/health',
       auth: '/api/auth',
@@ -94,26 +102,14 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'Saad bin shalwah API Running',
-    shop: process.env.SHOP_NAME || 'Al Noor Saad bin shalwah',
-    environment: process.env.NODE_ENV || 'development',
-    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-    timestamp: new Date().toISOString()
-  });
-});
-
 // ============================================
 // ❌ ERROR HANDLER
 // ============================================
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err.stack);
+  console.error('❌ Error:', err.message);
   res.status(500).json({
     success: false,
-    message: 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: err.message || 'Internal Server Error'
   });
 });
 
@@ -123,22 +119,14 @@ app.use((err, req, res, next) => {
 module.exports = app;
 
 // ============================================
-// 🚀 LOCAL DEVELOPMENT SERVER
+// 🚀 LOCAL DEVELOPMENT
 // ============================================
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
-    console.log('========================================');
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`🏪 Shop: ${process.env.SHOP_NAME || 'Al Noor Saad bin shalwah'}`);
-    console.log(`📧 Email: ${process.env.EMAIL_USER || 'Not configured'}`);
-    console.log(`📁 Uploads: ${uploadDir}`);
-    console.log(`📦 MongoDB: ${mongoose.connection.readyState === 1 ? '✅ Connected' : '❌ Disconnected'}`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log('========================================');
   });
 }
-
 // const express = require('express');
 // const mongoose = require('mongoose');
 // const cors = require('cors');
