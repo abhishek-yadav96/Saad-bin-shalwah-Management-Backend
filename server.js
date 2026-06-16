@@ -20,19 +20,21 @@ try {
   }
 } catch (err) {
   console.warn('⚠️ Could not create uploads folder:', err.message);
-  // Vercel par read-only filesystem, ignore
 }
 
 // ============================================
-// 🔧 MIDDLEWARE
+// 🔧 CORS - SINGLE PLACE (SAB ALLOW)
 // ============================================
 app.use(cors({
-  origin: '*',
-  credentials: true
+  origin: '*',  // ✅ Sab allow - testing ke liye
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use('/uploads', express.static(uploadDir));
 
 // ============================================
 // 🗄️ DATABASE CONNECTION
@@ -46,7 +48,7 @@ if (process.env.MONGODB_URI) {
 }
 
 // ============================================
-// 🚀 ROUTES - WITH ERROR HANDLING
+// 🚀 ROUTES
 // ============================================
 try {
   app.use('/api/auth', require('./routes/auth'));
@@ -78,12 +80,17 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Al Noor Saad bin shalwah API',
     version: '1.0.0',
+    shop: process.env.SHOP_NAME || 'Al Noor Saad bin shalwah',
     endpoints: {
       health: '/api/health',
       auth: '/api/auth',
       customers: '/api/customers',
       bills: '/api/bills',
-      products: '/api/products'
+      products: '/api/products',
+      dashboard: '/api/dashboard',
+      settings: '/api/settings',
+      reports: '/api/reports',
+      publicBill: '/bill/:id'
     }
   });
 });
