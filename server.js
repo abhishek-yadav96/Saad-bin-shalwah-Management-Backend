@@ -8,7 +8,7 @@ require('dotenv').config();
 const app = express();
 
 // ============================================
-// 📁 UPLOADS FOLDER - Vercel Compatible
+// 📁 UPLOADS FOLDER
 // ============================================
 const uploadPath = process.env.UPLOAD_PATH || './uploads';
 const uploadDir = path.join(__dirname, uploadPath);
@@ -23,10 +23,10 @@ try {
 }
 
 // ============================================
-// 🔧 CORS - SINGLE PLACE (SAB ALLOW)
+// 🔧 CORS - SAB ALLOW
 // ============================================
 app.use(cors({
-  origin: '*',  // ✅ Sab allow - testing ke liye
+  origin: '*',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -37,14 +37,28 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(uploadDir));
 
 // ============================================
-// 🗄️ DATABASE CONNECTION
+// 🗄️ DATABASE CONNECTION - WITH LOGS
 // ============================================
+console.log('🔍 MONGODB_URI:', process.env.MONGODB_URI ? '✅ Set' : '❌ Missing');
+
 if (process.env.MONGODB_URI) {
   mongoose.connect(process.env.MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
   })
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('❌ MongoDB Error:', err.message));
+  .then(() => {
+    console.log('✅ MongoDB Connected to Atlas');
+    console.log('📦 Database:', mongoose.connection.db.databaseName);
+  })
+  .catch(err => {
+    console.error('❌ MongoDB Error:', err.message);
+    console.error('❌ Please check:');
+    console.error('   1. MONGODB_URI is correct');
+    console.error('   2. IP whitelist has 0.0.0.0/0');
+    console.error('   3. Username/password are correct');
+  });
+} else {
+  console.error('❌ MONGODB_URI not set in environment variables!');
 }
 
 // ============================================
@@ -67,10 +81,19 @@ try {
 // 🏠 HEALTH CHECK
 // ============================================
 app.get('/api/health', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = {
+    0: 'Disconnected',
+    1: 'Connected',
+    2: 'Connecting',
+    3: 'Disconnecting'
+  };
+  
   res.json({
     status: 'OK',
     message: 'Saad bin shalwah API Running',
-    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    mongodb: dbStatus[dbState] || 'Unknown',
+    mongodb_ready: dbState === 1,
     timestamp: new Date().toISOString()
   });
 });
@@ -86,11 +109,7 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       customers: '/api/customers',
       bills: '/api/bills',
-      products: '/api/products',
-      dashboard: '/api/dashboard',
-      settings: '/api/settings',
-      reports: '/api/reports',
-      publicBill: '/bill/:id'
+      products: '/api/products'
     }
   });
 });
