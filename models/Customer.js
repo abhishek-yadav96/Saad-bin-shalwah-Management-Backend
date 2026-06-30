@@ -44,6 +44,29 @@ const measurementSchema = new mongoose.Schema({
   remaining: { type: Number, default: 0 },
   isPending: { type: Boolean, default: true },
   isDelivered: { type: Boolean, default: false },
+
+
+  // Shirt style options
+pocketStyle: { type: String, enum: ['Box', 'No Box'] },
+pocketCut: { type: String, enum: ['Cross', 'Straight'] },
+mobilePocket: { type: Boolean, default: false },
+pocketClosure: { type: String, enum: ['Loop', 'Button'] },
+frontStyle: { type: String, enum: ['Zip-Loop', 'Zip-Button', 'Button Only'] },
+nameEmbroidery: { type: Boolean, default: false },
+buttonSize: { type: String, enum: ['Big', 'Small'] },
+cuffStyle: { type: String, enum: ['Loop', 'Button'] },
+pleats: { type: Boolean, default: false },
+chestStyle: { type: String, enum: ['Loop Complete', 'Wing Loop', 'Left Loop'] },
+
+// Pant style options
+pantWaistStyle: { type: String, enum: ['Self Loop', 'Hook'] },
+pantBottomStyle: { type: String, enum: ['Plain', 'Loop'] },
+pantPocketStyle: {
+  type: String,
+  enum: ['Cross', 'Straight', 'Plain', 'Center Box', 'Side Box', 'Pleated', 'No Pocket'],
+},
+
+
 });
 
 const customerSchema = new mongoose.Schema({
