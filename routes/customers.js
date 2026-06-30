@@ -33,7 +33,6 @@ router.get('/', protect, async (req, res) => {
     } else if (filter === 'delivered') {
       query['measurements.isDelivered'] = true;
     } else if (filter === 'ready') {
-      // NEW: kapda taiyar hai lekin abhi deliver nahi hua
       query['measurements.isReady'] = true;
       query['measurements.isDelivered'] = { $ne: true };
     }
@@ -55,10 +54,9 @@ router.post('/', protect, upload.single('styleImage'), async (req, res) => {
     const data = JSON.parse(req.body.data || JSON.stringify(req.body));
     if (req.file) {
       if (data.measurements && data.measurements[0]) {
-        data.measurements[0].styleImage = req.file.path; // Cloudinary full URL
+        data.measurements[0].styleImage = req.file.path;
       }
     }
-    // Auto-calc remaining for each measurement
     if (data.measurements) {
       data.measurements = data.measurements.map(m => ({
         ...m,
@@ -90,7 +88,7 @@ router.put('/:id', protect, upload.single('styleImage'), async (req, res) => {
   try {
     const data = JSON.parse(req.body.data || JSON.stringify(req.body));
     if (req.file && data.measurements && data.measurements[0]) {
-      data.measurements[0].styleImage = req.file.path; // Cloudinary full URL
+      data.measurements[0].styleImage = req.file.path;
     }
     if (data.measurements) {
       data.measurements = data.measurements.map(m => ({
@@ -117,7 +115,7 @@ router.delete('/:id', protect, async (req, res) => {
   }
 });
 
-// @PUT /api/customers/:id/measurement/:mId/ready - NEW: Mark kapda ready (taiyar)
+// @PUT /api/customers/:id/measurement/:mId/ready
 router.put('/:id/measurement/:mId/ready', protect, async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
@@ -131,7 +129,7 @@ router.put('/:id/measurement/:mId/ready', protect, async (req, res) => {
   }
 });
 
-// @PUT /api/customers/:id/measurement/:mId/deliver - Mark as delivered
+// @PUT /api/customers/:id/measurement/:mId/deliver
 router.put('/:id/measurement/:mId/deliver', protect, async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
@@ -145,7 +143,7 @@ router.put('/:id/measurement/:mId/deliver', protect, async (req, res) => {
   }
 });
 
-// @PUT /api/customers/:id/measurement/:mId/paid - Mark as paid
+// @PUT /api/customers/:id/measurement/:mId/paid
 router.put('/:id/measurement/:mId/paid', protect, async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);

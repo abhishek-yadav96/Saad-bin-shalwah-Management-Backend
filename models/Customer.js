@@ -4,7 +4,7 @@ const measurementSchema = new mongoose.Schema({
   fullNameLabel: { type: String },
   deliveryDate: { type: Date },
   suitQuantity: { type: Number, default: 1 },
-  type: { type: String, enum: ['Waistcoat', 'Shirt', 'Kurta', 'Been', 'Collar'] },
+  type: { type: String, enum: ['Shirt'] }, // Only Shirt
 
   // Measurements (in inches)
   length: Number,
@@ -21,19 +21,6 @@ const measurementSchema = new mongoose.Schema({
   wrist: Number,
   plate: Number,
 
-  // Checkboxes
-  doubleSewing: { type: Boolean, default: false },
-  zip: { type: Boolean, default: false },
-  stud: { type: Boolean, default: false },
-  frontPocket: { type: Boolean, default: false },
-  net: { type: Boolean, default: false },
-
-  // Radio options
-  surroundType: { type: String, enum: ['Round', 'Square'] },
-  shalwarType: { type: String, enum: ['Simple', 'Trouser'] },
-  buttons: { type: String, enum: ['Simple', 'Stylish'] },
-  sidePocket: { type: String, enum: ['One', 'Two', 'No Pocket'] },
-
   // Style image
   styleImage: { type: String },
   extraInformation: { type: String },
@@ -44,12 +31,14 @@ const measurementSchema = new mongoose.Schema({
   remaining: { type: Number, default: 0 },
   isPending: { type: Boolean, default: true },
   isDelivered: { type: Boolean, default: false },
-
-  // ── NEW: Kapda ready status (taiyar ho gaya, deliver hone se pehle) ──
   isReady: { type: Boolean, default: false },
   readyAt: { type: Date },
 
-  // Shirt style options
+  // Payment Type
+  paymentType: { type: String, enum: ['Cash', 'Online'], default: 'Cash' },
+
+  // ── Shirt Style Options (Client ke hisaab se) ──
+  napel: { type: String }, // 2.1/4, 2.1/2, 3.1/4, 4.1/2, 5, 5.1/2, 6, 6.1/2, 7, 7.1/2
   pocketStyle: { type: String, enum: ['Box', 'No Box'] },
   pocketCut: { type: String, enum: ['Cross', 'Straight'] },
   mobilePocket: { type: Boolean, default: false },
@@ -61,7 +50,7 @@ const measurementSchema = new mongoose.Schema({
   pleats: { type: Boolean, default: false },
   chestStyle: { type: String, enum: ['Loop Complete', 'Wing Loop', 'Left Loop'] },
 
-  // Pant style options
+  // ── Pant Style Options (Client ke hisaab se) ──
   pantWaistStyle: { type: String, enum: ['Self Loop', 'Hook'] },
   pantBottomStyle: { type: String, enum: ['Plain', 'Loop'] },
   pantPocketStyle: {
