@@ -4,9 +4,9 @@ const measurementSchema = new mongoose.Schema({
   fullNameLabel: { type: String },
   deliveryDate: { type: Date },
   suitQuantity: { type: Number, default: 1 },
-  type: { type: String, enum: ['Shirt'] }, // Only Shirt
+  type: { type: String, enum: ['Shirt', 'Trousers'] }, // Sirf Shirt aur Trousers
 
-  // Measurements (in inches)
+  // Shirt Measurements
   length: Number,
   shoulder: Number,
   arm: Number,
@@ -15,6 +15,8 @@ const measurementSchema = new mongoose.Schema({
   chest: Number,
   waist: Number,
   surround: Number,
+
+  // Trousers Measurements
   pantLength: Number,
   pantWaist: Number,
   ankle: Number,
@@ -37,8 +39,8 @@ const measurementSchema = new mongoose.Schema({
   // Payment Type
   paymentType: { type: String, enum: ['Cash', 'Online'], default: 'Cash' },
 
-  // ── Shirt Style Options (Client ke hisaab se) ──
-  napel: { type: String }, // 2.1/4, 2.1/2, 3.1/4, 4.1/2, 5, 5.1/2, 6, 6.1/2, 7, 7.1/2
+  // ── Shirt Style Options ──
+  napel: { type: String },
   pocketStyle: { type: String, enum: ['Box', 'No Box'] },
   pocketCut: { type: String, enum: ['Cross', 'Straight'] },
   mobilePocket: { type: Boolean, default: false },
@@ -50,7 +52,7 @@ const measurementSchema = new mongoose.Schema({
   pleats: { type: Boolean, default: false },
   chestStyle: { type: String, enum: ['Loop Complete', 'Wing Loop', 'Left Loop'] },
 
-  // ── Pant Style Options (Client ke hisaab se) ──
+  // ── Pant Style Options ──
   pantWaistStyle: { type: String, enum: ['Self Loop', 'Hook'] },
   pantBottomStyle: { type: String, enum: ['Plain', 'Loop'] },
   pantPocketStyle: {
