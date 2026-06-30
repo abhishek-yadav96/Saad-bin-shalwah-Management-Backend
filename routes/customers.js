@@ -1,21 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const Customer = require('../models/Customer');
 const { protect } = require('../middleware/auth');
+const cloudinary = require('../config/cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// Multer config for style images
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = './uploads/styles';
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
+// Multer + Cloudinary config for style images
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'tailor_shop/styles',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 800, height: 800, crop: 'limit' }],
   },
-  filename: (req, file, cb) => {
-    cb(null, `style_${Date.now()}${path.extname(file.originalname)}`);
-  }
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -53,7 +51,7 @@ router.post('/', protect, upload.single('styleImage'), async (req, res) => {
     const data = JSON.parse(req.body.data || JSON.stringify(req.body));
     if (req.file) {
       if (data.measurements && data.measurements[0]) {
-        data.measurements[0].styleImage = `/uploads/styles/${req.file.filename}`;
+        data.measurements[0].styleImage = req.file.path; // Cloudinary full URL
       }
     }
     // Auto-calc remaining for each measurement
@@ -88,7 +86,7 @@ router.put('/:id', protect, upload.single('styleImage'), async (req, res) => {
   try {
     const data = JSON.parse(req.body.data || JSON.stringify(req.body));
     if (req.file && data.measurements && data.measurements[0]) {
-      data.measurements[0].styleImage = `/uploads/styles/${req.file.filename}`;
+      data.measurements[0].styleImage = req.file.path; // Cloudinary full URL
     }
     if (data.measurements) {
       data.measurements = data.measurements.map(m => ({
