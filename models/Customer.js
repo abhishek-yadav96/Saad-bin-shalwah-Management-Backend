@@ -5,6 +5,9 @@ const measurementSchema = new mongoose.Schema({
   deliveryDate: { type: Date },
   suitQuantity: { type: Number, default: 1 },
   type: { type: String, enum: ['Shirt', 'Trousers'] },
+  
+  // ── Order Type ──
+  orderType: { type: String, enum: ['New Stitching', 'Alteration'], default: 'New Stitching' },
 
   // ── Shirt Measurements ──
   length: Number,
@@ -16,13 +19,14 @@ const measurementSchema = new mongoose.Schema({
   neck: Number,
   head: Number,
 
-  // ── Trousers Measurements ──
-  pantLength: Number,
-  belt: Number,
-  seat: Number,
-  thigh: Number,
-  legStitching: Number,
-  alteration: Number,
+  // ── Trousers Measurements (UPDATED: 7 measurements) ──
+  pantLength: Number,    // Length
+  waist: Number,         // Waist
+  hip: Number,           // Hip
+  thigh: Number,         // Thigh
+  knee: Number,          // Knee ← NEW
+  bottom: Number,        // Bottom
+  round: Number,         // Round ← NEW
 
   // Style image
   styleImage: { type: String },
@@ -42,23 +46,23 @@ const measurementSchema = new mongoose.Schema({
 
   // ── Shirt Style Options ──
   napel: { type: String },
-  pocketStyle: { type: String, enum: ['Box', 'No Box', 'RK', 'LK'] },
+  pocketStyle: { type: String, enum: ['Box', 'No Box'] },
   pocketCut: { type: String, enum: ['Cross', 'Sidha'] },
   mobilePocket: { type: String, enum: ['Yes', 'No'] },
-  pocketClosure: { type: String, enum: ['Velcro', 'Button'] },  // ← Loop → Velcro
-  frontStyle: { type: String, enum: ['Chain Velcro', 'Chain Button', 'Only Button'] },  // ← Loop → Velcro
+  pocketClosure: { type: String, enum: ['Velcro', 'Button'] },
+  frontStyle: { type: String, enum: ['Chain Velcro', 'Chain Button', 'Only Button'] },
   nameEmbroidery: { type: String, enum: ['Yes', 'No'] },
   buttonSize: { type: String, enum: ['Big', 'Small'] },
-  cuffStyle: { type: String, enum: ['Velcro', 'Button'] },  // ← Loop → Velcro
+  cuffStyle: { type: String, enum: ['Velcro', 'Button'] },
   pleats: { type: String, enum: ['Yes', 'No'] },
-  chestStyle: { type: String, enum: ['Velcro Complete', 'Wing Velcro', 'Left Velcro'] },  // ← Loop → Velcro
+  chestStyle: { type: String, enum: ['Velcro Complete', 'Wing Velcro', 'Left Velcro'] },
 
   // ── Pant Style Options ──
-  pantWaistStyle: { type: String, enum: ['Self Velcro', 'Hook'] },  // ← Self Loop → Self Velcro
-  pantBottomStyle: { type: String, enum: ['Plain', 'Velcro'] },  // ← Loop → Velcro
+  pantWaistStyle: { type: String, enum: ['Self Velcro', 'Hook'] },
+  pantBottomStyle: { type: String, enum: ['Plain', 'Velcro'] },
   pantPocketStyle: {
     type: String,
-    enum: ['Cross', 'Sidha', 'Plain', 'Center Box', 'Side Box', 'Pleated', 'No'],
+    enum: ['Cross', 'Sidha', 'Plain', 'Center Box', 'Side Box', 'Pleated', 'No', 'LK', 'RK'],
   },
 });
 
