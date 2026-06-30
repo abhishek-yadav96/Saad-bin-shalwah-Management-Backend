@@ -32,6 +32,10 @@ router.get('/', protect, async (req, res) => {
       query['measurements.isPending'] = true;
     } else if (filter === 'delivered') {
       query['measurements.isDelivered'] = true;
+    } else if (filter === 'ready') {
+      // NEW: kapda taiyar hai lekin abhi deliver nahi hua
+      query['measurements.isReady'] = true;
+      query['measurements.isDelivered'] = { $ne: true };
     }
     const total = await Customer.countDocuments(query);
     const customers = await Customer.find(query)
@@ -108,6 +112,20 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     await Customer.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Customer deleted' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @PUT /api/customers/:id/measurement/:mId/ready - NEW: Mark kapda ready (taiyar)
+router.put('/:id/measurement/:mId/ready', protect, async (req, res) => {
+  try {
+    const customer = await Customer.findById(req.params.id);
+    const measurement = customer.measurements.id(req.params.mId);
+    measurement.isReady = true;
+    measurement.readyAt = new Date();
+    await customer.save();
+    res.json({ success: true, message: 'Marked as ready' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
