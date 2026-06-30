@@ -4,24 +4,25 @@ const measurementSchema = new mongoose.Schema({
   fullNameLabel: { type: String },
   deliveryDate: { type: Date },
   suitQuantity: { type: Number, default: 1 },
-  type: { type: String, enum: ['Shirt', 'Trousers'] }, // Sirf Shirt aur Trousers
+  type: { type: String, enum: ['Shirt', 'Trousers'] },
 
-  // Shirt Measurements
+  // ── Shirt Measurements ──
   length: Number,
+  chest: Number,
+  middle: Number,
   shoulder: Number,
   arm: Number,
-  armHole: Number,
+  kback: Number,
   neck: Number,
-  chest: Number,
-  waist: Number,
-  surround: Number,
+  head: Number,
 
-  // Trousers Measurements
+  // ── Trousers Measurements ──
   pantLength: Number,
-  pantWaist: Number,
-  ankle: Number,
-  wrist: Number,
-  plate: Number,
+  belt: Number,
+  seat: Number,
+  thigh: Number,
+  legStitching: Number,
+  alteration: Number,
 
   // Style image
   styleImage: { type: String },
@@ -39,17 +40,17 @@ const measurementSchema = new mongoose.Schema({
   // Payment Type
   paymentType: { type: String, enum: ['Cash', 'Online'], default: 'Cash' },
 
-  // ── Shirt Style Options ──
+  // ── Shirt Style Options (Client ke hisaab se) ──
   napel: { type: String },
   pocketStyle: { type: String, enum: ['Box', 'No Box'] },
-  pocketCut: { type: String, enum: ['Cross', 'Straight'] },
-  mobilePocket: { type: Boolean, default: false },
+  pocketCut: { type: String, enum: ['Cross', 'Sidha'] },
+  mobilePocket: { type: String, enum: ['Yes', 'No'] },
   pocketClosure: { type: String, enum: ['Loop', 'Button'] },
-  frontStyle: { type: String, enum: ['Zip-Loop', 'Zip-Button', 'Button Only'] },
-  nameEmbroidery: { type: Boolean, default: false },
+  frontStyle: { type: String, enum: ['Chain Loop', 'Chain Button', 'Only Button'] },
+  nameEmbroidery: { type: String, enum: ['Yes', 'No'] },
   buttonSize: { type: String, enum: ['Big', 'Small'] },
   cuffStyle: { type: String, enum: ['Loop', 'Button'] },
-  pleats: { type: Boolean, default: false },
+  pleats: { type: String, enum: ['Yes', 'No'] },
   chestStyle: { type: String, enum: ['Loop Complete', 'Wing Loop', 'Left Loop'] },
 
   // ── Pant Style Options ──
@@ -57,7 +58,7 @@ const measurementSchema = new mongoose.Schema({
   pantBottomStyle: { type: String, enum: ['Plain', 'Loop'] },
   pantPocketStyle: {
     type: String,
-    enum: ['Cross', 'Straight', 'Plain', 'Center Box', 'Side Box', 'Pleated', 'No Pocket'],
+    enum: ['Cross', 'Sidha', 'Plain', 'Center Box', 'Side Box', 'Pleated', 'No'],
   },
 });
 
