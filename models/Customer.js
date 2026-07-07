@@ -4,8 +4,10 @@ const measurementSchema = new mongoose.Schema({
   fullNameLabel: { type: String },
   deliveryDate: { type: Date },
   suitQuantity: { type: Number, default: 1 },
-  type: { type: String, enum: ['Shirt', 'Trousers'] },
-  
+
+  // ── FIX: ab array hai, taake Shirt + Trousers dono ek saath save ho sakein ──
+  type: [{ type: String, enum: ['Shirt', 'Trousers'] }],
+
   // ── Order Type ──
   orderType: { type: String, enum: ['New Stitching', 'Alteration'], default: 'New Stitching' },
 
@@ -19,14 +21,14 @@ const measurementSchema = new mongoose.Schema({
   neck: Number,
   head: Number,
 
-  // ── Trousers Measurements (UPDATED: 7 measurements) ──
-  pantLength: Number,    // Length
-  waist: Number,         // Waist
-  hip: Number,           // Hip
-  thigh: Number,         // Thigh
-  knee: Number,          // Knee ← NEW
-  bottom: Number,        // Bottom
-  round: Number,         // Round ← NEW
+  // ── Trousers Measurements ──
+  pantLength: Number,
+  waist: Number,
+  hip: Number,
+  thigh: Number,
+  knee: Number,
+  bottom: Number,
+  round: Number,
 
   // Style image
   styleImage: { type: String },
