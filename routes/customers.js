@@ -17,6 +17,21 @@ const storage = new CloudinaryStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
+// ── Helper: null/undefined-valued optional fields ko measurement se hata do.
+// Mongoose ke liye "field missing" aur "field = null" alag cheezein hain —
+// enum fields me `null` explicitly bhejne se validation fail ho jata hai
+// (jaisa Pocket Style, Mobile Pocket, Pant Waist Style, etc. me ho raha tha).
+// Isliye har measurement object se null/undefined keys clean kar dete hain. ──
+function cleanMeasurement(m) {
+  const cleaned = { ...m };
+  Object.keys(cleaned).forEach((key) => {
+    if (cleaned[key] === null || cleaned[key] === undefined) {
+      delete cleaned[key];
+    }
+  });
+  return cleaned;
+}
+
 // @GET /api/customers
 router.get('/', protect, async (req, res) => {
   try {
@@ -58,7 +73,7 @@ router.post('/', protect, upload.single('styleImage'), async (req, res) => {
       }
     }
     if (data.measurements) {
-      data.measurements = data.measurements.map(m => ({
+      data.measurements = data.measurements.map(m => cleanMeasurement({
         ...m,
         remaining: (m.price || 0) - (m.advance || 0),
         isPending: ((m.price || 0) - (m.advance || 0)) > 0
@@ -91,7 +106,7 @@ router.put('/:id', protect, upload.single('styleImage'), async (req, res) => {
       data.measurements[0].styleImage = req.file.path;
     }
     if (data.measurements) {
-      data.measurements = data.measurements.map(m => ({
+      data.measurements = data.measurements.map(m => cleanMeasurement({
         ...m,
         remaining: (m.price || 0) - (m.advance || 0),
         isPending: ((m.price || 0) - (m.advance || 0)) > 0
