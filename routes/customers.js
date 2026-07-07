@@ -120,6 +120,38 @@ router.put('/:id', protect, upload.single('styleImage'), async (req, res) => {
   }
 });
 
+// @POST /api/customers/:id/measurements
+// ── NEW: adds a FRESH order (measurement) onto an EXISTING customer without
+// touching any of their previous orders. This is what powers "+ Naya Order"
+// on the customer detail screen — same customer comes back after a few days
+// for a new kapda/order, and their full history stays intact. ──
+router.post('/:id/measurements', protect, upload.single('styleImage'), async (req, res) => {
+  try {
+    const data = JSON.parse(req.body.data || JSON.stringify(req.body));
+    let measurement = data.measurement || {};
+
+    if (req.file) {
+      measurement.styleImage = req.file.path;
+    }
+
+    measurement = cleanMeasurement({
+      ...measurement,
+      remaining: (measurement.price || 0) - (measurement.advance || 0),
+      isPending: ((measurement.price || 0) - (measurement.advance || 0)) > 0,
+    });
+
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ success: false, message: 'Customer not found' });
+
+    customer.measurements.push(measurement);
+    await customer.save();
+
+    res.status(201).json({ success: true, customer });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // @DELETE /api/customers/:id
 router.delete('/:id', protect, async (req, res) => {
   try {
