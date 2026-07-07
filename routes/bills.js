@@ -61,21 +61,60 @@ router.get('/', protect, async (req, res) => {
 router.post('/', protect, async (req, res) => {
   try {
     const settings = await getSettings();
-    const billData = req.body;
-    
+    const billData = { ...req.body };
+
+    // ── FIX #1: customer aur items ko khud validate karo pehle hi, taaki
+    // Mongoose ka raw/ugly ValidationError frontend tak na jaaye. Ab user
+    // ko exactly pata chalega ki kya missing hai. ──
+    if (!billData.customer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please select a customer before creating the bill',
+      });
+    }
+    if (!Array.isArray(billData.items) || billData.items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Add at least one bill item',
+      });
+    }
+    const hasEmptyDescription = billData.items.some(
+      (i) => !i.description || `${i.description}`.trim() === ''
+    );
+    if (hasEmptyDescription) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fill description for all bill items',
+      });
+    }
+
     // Auto bill number
     if (!billData.billNumber || billData.billNumber === 'auto') {
       billData.billNumber = await getNextBillNumber(settings);
     }
     // Check duplicate
     const exists = await Bill.findOne({ billNumber: billData.billNumber });
-    if (exists) return res.status(400).json({ success: false, message: `Bill #${billData.billNumber} already exists` });
-    
+    if (exists) {
+      return res.status(400).json({
+        success: false,
+        message: `Bill #${billData.billNumber} already exists`,
+      });
+    }
+
     // Use VAT from settings if not provided
     if (billData.vatPercent === undefined || billData.vatPercent === null) {
       billData.vatPercent = settings.vatPercent || 0;
     }
     billData.createdBy = req.user._id;
+
+    // ── FIX #2: customerEmail Bill schema me field nahi hai, isliye
+    // Bill.create() ko pass karne se pehle nikal lo — warna Mongoose usko
+    // silently ignore kar dega, lekin cleanliness ke liye explicit rakha ──
+    const customerEmailInput =
+      billData.customerEmail && `${billData.customerEmail}`.trim() !== ''
+        ? billData.customerEmail.trim()
+        : null;
+    delete billData.customerEmail;
 
     // Generate QR Code
     const billUrl = `${process.env.FRONTEND_URL}/bill/${Date.now()}`;
@@ -84,7 +123,7 @@ router.post('/', protect, async (req, res) => {
     billData.qrUrl = billUrl;
 
     const bill = await Bill.create(billData);
-    
+
     // Update bill with correct QR URL using actual ID
     const actualUrl = `${process.env.FRONTEND_URL}/bill/${bill._id}`;
     const actualQR = await QRCode.toDataURL(actualUrl);
@@ -101,9 +140,15 @@ router.post('/', protect, async (req, res) => {
       }
     }
 
-    // Generate PDF and send email if customer has email
+    // ── FIX #3: pehle sirf `customer.email` pe depend karta tha, jo
+    // Customer schema/form me store hi nahi hota — isliye invoice email
+    // kabhi jaata hi nahi tha. Ab manual `customerEmail` (jo Flutter se
+    // aata hai) ko priority di jaati hai, customer.email fallback rehta hai. ──
     const populatedBill = await Bill.findById(bill._id).populate('customer');
-    if (populatedBill.customer && populatedBill.customer.email) {
+    const finalEmail = customerEmailInput || populatedBill.customer?.email;
+
+    let emailSent = false;
+    if (finalEmail) {
       try {
         const pdfBuffer = await generatePDF(populatedBill, {
           shopName: settings.shopName,
@@ -113,17 +158,27 @@ router.post('/', protect, async (req, res) => {
           currency: settings.currency || 'AED',
           thankYouMessage: settings.thankYouMessage
         });
-        populatedBill.customerEmail = populatedBill.customer.email;
-        await sendBillEmail(populatedBill, pdfBuffer, settings);
-        bill.emailSent = true;
-        await bill.save();
+        populatedBill.customerEmail = finalEmail;
+        const result = await sendBillEmail(populatedBill, pdfBuffer, settings);
+        if (result && result.success !== false) {
+          bill.emailSent = true;
+          await bill.save();
+          emailSent = true;
+        }
       } catch (emailErr) {
         console.error('Email send error:', emailErr.message);
+        // Bill already ban chuka hai — email fail hone pe bhi bill
+        // creation fail nahi karte, sirf response me batate hain.
       }
     }
 
-    res.status(201).json({ success: true, bill });
+    res.status(201).json({ success: true, bill, emailSent });
   } catch (err) {
+    // ── Mongoose validation errors ko readable bana do ──
+    if (err.name === 'ValidationError') {
+      const firstError = Object.values(err.errors)[0]?.message || err.message;
+      return res.status(400).json({ success: false, message: firstError });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -168,10 +223,10 @@ router.post('/:id/send-email', protect, async (req, res) => {
     const settings = await getSettings();
     const bill = await Bill.findById(req.params.id).populate('customer');
     if (!bill) return res.status(404).json({ success: false, message: 'Bill not found' });
-    
+
     const customerEmail = req.body.email || (bill.customer && bill.customer.email);
     if (!customerEmail) return res.status(400).json({ success: false, message: 'No email address provided' });
-    
+
     const pdfBuffer = await generatePDF(bill, {
       shopName: settings.shopName,
       shopAddress: settings.shopAddress,
@@ -180,7 +235,7 @@ router.post('/:id/send-email', protect, async (req, res) => {
       currency: settings.currency || 'AED',
       thankYouMessage: settings.thankYouMessage
     });
-    
+
     bill.customerEmail = customerEmail;
     const result = await sendBillEmail(bill, pdfBuffer, settings);
     if (result.success) {
@@ -201,7 +256,7 @@ router.get('/:id/pdf', protect, async (req, res) => {
     const settings = await getSettings();
     const bill = await Bill.findById(req.params.id).populate('customer');
     if (!bill) return res.status(404).json({ success: false, message: 'Bill not found' });
-    
+
     const pdfBuffer = await generatePDF(bill, {
       shopName: settings.shopName,
       shopAddress: settings.shopAddress,
@@ -210,7 +265,7 @@ router.get('/:id/pdf', protect, async (req, res) => {
       currency: settings.currency || 'AED',
       thankYouMessage: settings.thankYouMessage
     });
-    
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=Bill_${bill.billNumber}.pdf`);
     res.send(pdfBuffer);

@@ -72,6 +72,7 @@ const customerSchema = new mongoose.Schema({
   name: { type: String, required: true },
   phone: { type: String, required: true },
   city: { type: String },
+  email: { type: String, trim: true, lowercase: true }, // ── NEW ──
   measurements: [measurementSchema],
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 }, { timestamps: true });
