@@ -1,6 +1,7 @@
 const nodemailer = require('nodemailer');
 const moment = require('moment');
 
+
 const getTransporter = (settings) => {
   const config = {
     host: settings.smtpHost || process.env.EMAIL_HOST || 'smtp.gmail.com',
@@ -11,7 +12,7 @@ const getTransporter = (settings) => {
       pass: settings.smtpPass || process.env.EMAIL_PASS,
     }
   };
-  return nodemailer.createTransporter(config);
+  return nodemailer.createTransport(config);   // ✅ "createTransport" — "er" hata do
 };
 
 const sendBillEmail = async (bill, pdfBuffer, settings) => {
