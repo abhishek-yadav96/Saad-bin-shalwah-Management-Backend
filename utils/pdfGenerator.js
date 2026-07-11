@@ -1,166 +1,129 @@
 const moment = require('moment');
-const chromium = require('@sparticuz/chromium');
-const puppeteer = require('puppeteer-core');
+const QRCode = require('qrcode');
 
-const generateBillHTML = (bill, settings) => {
-  const itemRows = bill.items.map(item => `
+// ── FIX #23: QR ab hamesha BACKEND url ko encode karta hai (frontend nahi) ──
+// backendBaseUrl example: https://your-api.vercel.app
+async function generateQrForBill(bill, backendBaseUrl) {
+  const url = `${backendBaseUrl}/bill/${bill._id}`;
+  const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 220 });
+  return qrDataUrl;
+}
+
+function measurementBlockHTML(m) {
+  if (!m) return '';
+  const shirtRows = (m.type || []).includes('Shirt') ? `
+    <tr><td colspan="4"><strong>Shirt Measurement</strong></td></tr>
     <tr>
-      <td>${item.description}</td>
-      <td style="text-align:center">${item.quantity}</td>
-      <td style="text-align:right">${settings.currency} ${item.price.toFixed(2)}</td>
-      <td style="text-align:right">${settings.currency} ${item.total.toFixed(2)}</td>
+      <td>Length: ${m.length ?? '-'}</td><td>Chest: ${m.chest ?? '-'}</td>
+      <td>Shoulder: ${m.shoulder ?? '-'}</td><td>Arm: ${m.arm ?? '-'}</td>
     </tr>
-  `).join('');
+    <tr>
+      <td>Middle: ${m.middle ?? '-'}</td><td>K.Back: ${m.kback ?? '-'}</td>
+      <td>Neck: ${m.neck ?? '-'}</td><td>Head: ${m.head ?? '-'}</td>
+    </tr>` : '';
+
+  const trouserRows = (m.type || []).includes('Trousers') ? `
+    <tr><td colspan="4"><strong>Trouser Measurement</strong></td></tr>
+    <tr>
+      <td>Length: ${m.pantLength ?? '-'}</td><td>Waist: ${m.waist ?? '-'}</td>
+      <td>Hip: ${m.hip ?? '-'}</td><td>Thigh: ${m.thigh ?? '-'}</td>
+    </tr>
+    <tr>
+      <td>Knee: ${m.knee ?? '-'}</td><td>Bottom: ${m.bottom ?? '-'}</td>
+      <td>Round: ${m.round ?? '-'}</td><td></td>
+    </tr>` : '';
 
   return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; font-size: 13px; color: #333; background: white; }
-        .bill-container { max-width: 800px; margin: 0 auto; padding: 30px; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 2px solid #2c3e50; }
-        .shop-info h1 { font-size: 24px; color: #2c3e50; margin-bottom: 5px; }
-        .shop-info p { color: #666; font-size: 12px; line-height: 1.6; }
-        .bill-info { text-align: right; }
-        .bill-info h2 { font-size: 20px; color: #2c3e50; margin-bottom: 8px; }
-        .bill-info p { font-size: 12px; color: #555; line-height: 1.8; }
-        .customer-section { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
-        .customer-section h3 { color: #2c3e50; margin-bottom: 10px; font-size: 14px; }
-        .customer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .customer-item { font-size: 12px; }
-        .customer-item strong { color: #555; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        thead { background: #2c3e50; color: white; }
-        thead th { padding: 10px 12px; text-align: left; font-size: 12px; }
-        tbody tr { border-bottom: 1px solid #eee; }
-        tbody tr:nth-child(even) { background: #f9f9f9; }
-        tbody td { padding: 9px 12px; font-size: 12px; }
-        .totals { margin-left: auto; width: 280px; }
-        .total-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid #eee; }
-        .total-row.grand { font-weight: bold; font-size: 15px; color: #2c3e50; border-top: 2px solid #2c3e50; border-bottom: none; padding-top: 10px; }
-        .total-row.remaining-row { color: #e74c3c; font-weight: bold; }
-        .footer { margin-top: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-        .qr-section { text-align: center; }
-        .qr-section img { width: 100px; height: 100px; }
-        .qr-section p { font-size: 10px; color: #999; margin-top: 4px; }
-        .thank-you { flex: 1; text-align: center; color: #666; font-style: italic; font-size: 12px; }
-        .status-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; }
-        .paid { background: #d4edda; color: #155724; }
-        .pending { background: #fff3cd; color: #856404; }
-        .partial { background: #cce5ff; color: #004085; }
-      </style>
-    </head>
-    <body>
-      <div class="bill-container">
-        <div class="header">
-          <div class="shop-info">
-            ${settings.shopLogo ? `<img src="${settings.shopLogo}" style="height:60px;margin-bottom:8px;"><br>` : ''}
-            <h1>${settings.shopName}</h1>
-            <p>${settings.shopAddress}</p>
-            <p>📞 ${settings.shopPhone || ''}</p>
-            <p>✉️ ${settings.shopEmail || ''}</p>
-          </div>
-          <div class="bill-info">
-            <h2>INVOICE</h2>
-            <p><strong>Bill #:</strong> ${bill.billNumber}</p>
-            <p><strong>Date:</strong> ${moment(bill.billDate).format('DD MMM YYYY')}</p>
-            <p><strong>Status:</strong>
-              <span class="status-badge ${bill.status}">${bill.status.toUpperCase()}</span>
-            </p>
-          </div>
-        </div>
+    <table style="width:100%; font-size:12px; border-collapse:collapse; margin-top:10px;" border="1" cellpadding="4">
+      ${shirtRows}
+      ${trouserRows}
+    </table>`;
+}
 
-        <div class="customer-section">
-          <h3>📋 Customer Details</h3>
-          <div class="customer-grid">
-            <div class="customer-item"><strong>Name:</strong> ${bill.customerName}</div>
-            <div class="customer-item"><strong>Phone:</strong> ${bill.customerPhone || '-'}</div>
-          </div>
-        </div>
+function generateBillHTML(bill, shopSettings, qrDataUrl) {
+  const showMeasurements = bill.copyLabel === 'Tailor/Cutting Copy' || bill.copyLabel === 'Shop Copy';
 
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th style="text-align:center">Qty</th>
-              <th style="text-align:right">Price</th>
-              <th style="text-align:right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemRows}
-          </tbody>
-        </table>
+  // NOTE: purchasePrice is intentionally never read/rendered here — customer must never see it.
+  const itemsRows = bill.items.map((it) => `
+    <tr>
+      <td>${it.description}</td>
+      <td style="text-align:center;">${it.quantity}</td>
+      <td style="text-align:right;">${shopSettings.currency} ${it.price.toFixed(2)}</td>
+      <td style="text-align:right;">${shopSettings.currency} ${it.total.toFixed(2)}</td>
+    </tr>`).join('');
 
-        <div class="totals">
-          <div class="total-row">
-            <span>Subtotal</span>
-            <span>${settings.currency} ${bill.subtotal.toFixed(2)}</span>
-          </div>
-          <div class="total-row">
-            <span>VAT (${bill.vatPercent}%)</span>
-            <span>${settings.currency} ${bill.vatAmount.toFixed(2)}</span>
-          </div>
-          <div class="total-row grand">
-            <span>Grand Total</span>
-            <span>${settings.currency} ${bill.total.toFixed(2)}</span>
-          </div>
-          <div class="total-row">
-            <span>Advance Paid</span>
-            <span>${settings.currency} ${bill.advancePaid.toFixed(2)}</span>
-          </div>
-          <div class="total-row remaining-row">
-            <span>Remaining</span>
-            <span>${settings.currency} ${bill.remaining.toFixed(2)}</span>
-          </div>
-        </div>
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Bill ${bill.billNumber}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; color: #222; }
+      .header { text-align:center; border-bottom:2px solid #2c3e50; padding-bottom:10px; margin-bottom:15px; }
+      .meta { font-size:13px; margin-bottom:10px; }
+      .meta td { padding: 2px 8px 2px 0; }
+      table.items { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+      table.items th, table.items td { border:1px solid #ccc; padding:6px; }
+      .totals { margin-top:10px; float:right; width:260px; font-size:13px; }
+      .totals td { padding:3px 6px; }
+      .copy-label { text-align:center; font-weight:bold; background:#2c3e50; color:#fff; padding:4px; margin-bottom:10px; }
+      .qr-block { text-align:center; margin-top:30px; clear:both; }
+      .qr-block img { width:120px; height:120px; }
+    </style>
+  </head>
+  <body>
+    <div class="copy-label">${bill.copyLabel || 'Bill'}</div>
+    <div class="header">
+      <h2>${shopSettings.shopName}</h2>
+      <div>${shopSettings.shopAddress || ''}</div>
+      <div>${shopSettings.shopPhone || ''}</div>
+    </div>
 
-        <div class="footer">
-          <div class="thank-you">
-            <p>🙏 ${settings.thankYouMessage || 'Thank you for your business!'}</p>
-          </div>
-          <div class="qr-section">
-            ${bill.qrCode ? `<img src="${bill.qrCode}" alt="QR Code">` : ''}
-            <p>Scan to view bill</p>
-          </div>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-};
+    <table class="meta">
+      <tr>
+        <td><strong>Bill No:</strong> ${bill.billNumber}</td>
+        <td><strong>Order No:</strong> ${bill.orderNumber || '-'}</td>
+      </tr>
+      <tr>
+        <td><strong>Date:</strong> ${moment(bill.billDate).format('DD MMM YYYY')}</td>
+        <td><strong>Time:</strong> ${moment(bill.billDate).format('hh:mm A')}</td>
+      </tr>
+      <tr>
+        <td><strong>Customer:</strong> ${bill.customerName}</td>
+        <td><strong>Mobile:</strong> ${bill.customerPhone || '-'}</td>
+      </tr>
+    </table>
 
-// ── Real PDF generation using puppeteer-core + @sparticuz/chromium.
-// Ye Vercel serverless pe chalne ke liye specifically banaya gaya hai —
-// normal `puppeteer` package ka bundled Chromium 300MB+ ka hota hai jo
-// Vercel ki function size limit se bahar chala jaata hai. @sparticuz/chromium
-// ek compressed, serverless-optimized Chromium binary provide karta hai. ──
-const generatePDF = async (bill, settings) => {
-  let browser;
-  try {
-    const html = generateBillHTML(bill, settings);
+    <table class="items">
+      <thead>
+        <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+      </thead>
+      <tbody>${itemsRows}</tbody>
+    </table>
 
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
+    <div class="totals">
+      <table style="width:100%;">
+        <tr><td>Subtotal</td><td style="text-align:right;">${shopSettings.currency} ${bill.subtotal.toFixed(2)}</td></tr>
+        ${bill.vatPercent ? `<tr><td>VAT (${bill.vatPercent}%)</td><td style="text-align:right;">${shopSettings.currency} ${bill.vatAmount.toFixed(2)}</td></tr>` : ''}
+        <tr><td><strong>Total</strong></td><td style="text-align:right;"><strong>${shopSettings.currency} ${bill.total.toFixed(2)}</strong></td></tr>
+        <tr><td>Advance Paid</td><td style="text-align:right;">${shopSettings.currency} ${bill.advancePaid.toFixed(2)}</td></tr>
+        <tr><td>Remaining</td><td style="text-align:right; color:#e74c3c;"><strong>${shopSettings.currency} ${bill.remaining.toFixed(2)}</strong></td></tr>
+      </table>
+    </div>
 
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
-    });
-    return pdfBuffer;
-  } finally {
-    if (browser) await browser.close();
-  }
-};
+    ${showMeasurements ? measurementBlockHTML(bill.measurementSnapshot) : ''}
 
-module.exports = { generatePDF, generateBillHTML };
+    <div class="qr-block">
+      <img src="${qrDataUrl}" alt="Scan for digital bill" />
+      <div style="font-size:11px; color:#666;">Scan to view this bill online</div>
+    </div>
+
+    <p style="text-align:center; margin-top:20px; font-style:italic; font-size:12px;">
+      ${shopSettings.thankYouMessage || 'Thank you for your business!'}
+    </p>
+  </body>
+  </html>`;
+}
+
+module.exports = { generateBillHTML, generateQrForBill };
