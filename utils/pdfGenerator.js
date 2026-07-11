@@ -1,17 +1,25 @@
 const moment = require('moment');
 const QRCode = require('qrcode');
 
-// ── FIX #23: QR ab hamesha BACKEND url ko encode karta hai (frontend nahi) ──
+// ── Generate QR Code for Bill ──
 async function generateQrForBill(bill, backendBaseUrl) {
-  const url = `${backendBaseUrl}/bill/${bill._id}`;
-  const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 220 });
-  return qrDataUrl;
+  try {
+    const url = `${backendBaseUrl}/bill/${bill._id}`;
+    const qrDataUrl = await QRCode.toDataURL(url, { 
+      margin: 2, 
+      width: 300,
+      errorCorrectionLevel: 'H'
+    });
+    return qrDataUrl;
+  } catch (error) {
+    console.error('QR Generation Error:', error);
+    return null;
+  }
 }
 
 function measurementBlockHTML(m) {
   if (!m) return '';
   
-  // ── FIX: Support both array and string type ──
   let types = [];
   if (m.type) {
     if (Array.isArray(m.type)) {
@@ -66,80 +74,7 @@ function measurementBlockHTML(m) {
     </table>` : '';
 }
 
-// ── Shirt Style Display ──
-function shirtStyleBlock(m) {
-  if (!m) return '';
-  const styles = [];
-  if (m.napel) styles.push(`Napel: ${m.napel}`);
-  if (m.pocketStyle) styles.push(`Pocket: ${m.pocketStyle}`);
-  if (m.pocketCut) styles.push(`Pocket Cut: ${m.pocketCut}`);
-  if (m.mobilePocket) styles.push(`Mobile Pocket: ${m.mobilePocket}`);
-  if (m.pocketClosure) styles.push(`Closure: ${m.pocketClosure}`);
-  if (m.frontStyle) styles.push(`Front: ${m.frontStyle}`);
-  if (m.nameEmbroidery) styles.push(`Name Embroidery: ${m.nameEmbroidery}`);
-  if (m.buttonSize) styles.push(`Button: ${m.buttonSize}`);
-  if (m.cuffStyle) styles.push(`Cuff: ${m.cuffStyle}`);
-  if (m.pleats) styles.push(`Pleats: ${m.pleats}`);
-  if (m.chestStyle) styles.push(`Chest: ${m.chestStyle}`);
-  
-  if (styles.isEmpty) return '';
-  
-  return `
-    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">SHIRT STYLE</td></tr>
-    <tr>
-      <td colspan="4" style="text-align:center; font-size:11px;">${styles.join(' | ')}</td>
-    </tr>`;
-}
-
-// ── Pant Style Display ──
-function pantStyleBlock(m) {
-  if (!m) return '';
-  const styles = [];
-  if (m.pantWaistStyle) styles.push(`Waist: ${m.pantWaistStyle}`);
-  if (m.pantBottomStyle) styles.push(`Bottom: ${m.pantBottomStyle}`);
-  if (m.pantPocketStyle) styles.push(`Pocket: ${m.pantPocketStyle}`);
-  
-  if (styles.isEmpty) return '';
-  
-  return `
-    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">PANT STYLE</td></tr>
-    <tr>
-      <td colspan="4" style="text-align:center; font-size:11px;">${styles.join(' | ')}</td>
-    </tr>`;
-}
-
-// ── Extra Items Display ──
-function extraItemsBlock(m) {
-  if (!m || !m.extraItems || m.extraItems.length === 0) return '';
-  
-  let rows = '';
-  let total = 0;
-  for (const item of m.extraItems) {
-    const price = item.sellPrice || 0;
-    const qty = item.quantity || 1;
-    const itemTotal = price * qty;
-    total += itemTotal;
-    rows += `
-      <tr>
-        <td>${item.name || 'Item'}</td>
-        <td style="text-align:center;">${qty}</td>
-        <td style="text-align:right;">${price.toFixed(2)}</td>
-        <td style="text-align:right;">${itemTotal.toFixed(2)}</td>
-      </tr>`;
-  }
-  
-  return `
-    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">EXTRA ITEMS</td></tr>
-    ${rows}
-    <tr>
-      <td colspan="3" style="text-align:right; font-weight:bold;">Extra Items Total:</td>
-      <td style="text-align:right; font-weight:bold;">${total.toFixed(2)}</td>
-    </tr>`;
-}
-
 function generateBillHTML(bill, shopSettings, qrDataUrl) {
-  // ── Show measurements on ALL copies, not just Tailor/Cutting ──
-  // Client wants everything visible on public bill
   const showMeasurements = true;
   const snap = bill.measurementSnapshot || {};
 
@@ -153,11 +88,10 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
     }
   }
 
-  // ── Grand total with extra items ──
   const grandTotal = (bill.total || 0) + extraTotal;
   const remaining = grandTotal - (bill.advancePaid || 0);
 
-  // ── Items rows (including extra items if present) ──
+  // ── Items rows ──
   let itemsRows = bill.items.map((it) => `
     <tr>
       <td>${it.description}</td>
@@ -166,7 +100,7 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
       <td style="text-align:right;">${shopSettings.currency} ${it.total.toFixed(2)}</td>
     </tr>`).join('');
 
-  // ── Add extra items to bill items table ──
+  // ── Add extra items ──
   if (snap.extraItems && snap.extraItems.length > 0) {
     for (const item of snap.extraItems) {
       const price = item.sellPrice || 0;
@@ -181,6 +115,9 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         </tr>`;
     }
   }
+
+  // ── QR Code Image ──
+  const qrImage = qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code" />` : '<p>QR Code unavailable</p>';
 
   return `
   <!DOCTYPE html>
@@ -290,16 +227,18 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         border-top:1px solid #ddd;
       }
       .qr-block img { 
-        width:130px; 
-        height:130px; 
-        border:1px solid #ddd;
-        border-radius:8px;
-        padding:8px;
+        width:150px; 
+        height:150px; 
+        border:2px solid #2c3e50;
+        border-radius:12px;
+        padding:10px;
+        background: white;
       }
       .qr-label { 
-        font-size:11px; 
+        font-size:12px; 
         color:#666; 
-        margin-top:4px; 
+        margin-top:8px; 
+        font-weight:600;
       }
       .footer { 
         text-align:center; 
@@ -344,6 +283,7 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         .bill-container { box-shadow:none; padding:10px; }
         .copy-label { background:#2c3e50 !important; color:white !important; }
         table.items th { background:#2c3e50 !important; color:white !important; }
+        .qr-block img { border:1px solid #ddd; }
       }
       @media (max-width: 600px) {
         body { padding:10px; }
@@ -351,7 +291,7 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         .meta td { display:block; padding:2px 0; }
         .meta td.label { width:auto; }
         .totals { float:none; width:100%; max-width:100%; }
-        .qr-block img { width:100px; height:100px; }
+        .qr-block img { width:120px; height:120px; }
         table.items { font-size:12px; }
         table.items th, table.items td { padding:4px; }
         .header h2 { font-size:20px; }
@@ -409,7 +349,7 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
       <div style="clear:both;"></div>
 
       <!-- ═══════════════════════════════════════════════════════════════ -->
-      <!-- ── MEASUREMENTS SECTION - SHOW ALL ON PUBLIC BILL ── -->
+      <!-- ── MEASUREMENTS SECTION ── -->
       <!-- ═══════════════════════════════════════════════════════════════ -->
       ${showMeasurements ? `
       <div class="measurement-section">
@@ -459,9 +399,12 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         </div>` : ''}
       </div>` : ''}
 
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!-- ── QR CODE BLOCK ── -->
+      <!-- ═══════════════════════════════════════════════════════════════ -->
       <div class="qr-block">
-        <img src="${qrDataUrl}" alt="Scan to view bill online" />
-        <div class="qr-label">Scan to view this bill online</div>
+        ${qrImage}
+        <div class="qr-label">📱 Scan to view this bill online</div>
       </div>
 
       <div class="footer">
