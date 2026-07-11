@@ -91,7 +91,6 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
   const grandTotal = (bill.total || 0) + extraTotal;
   const remaining = grandTotal - (bill.advancePaid || 0);
 
-  // ── Items rows ──
   let itemsRows = bill.items.map((it) => `
     <tr>
       <td>${it.description}</td>
@@ -100,7 +99,6 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
       <td style="text-align:right;">${shopSettings.currency} ${it.total.toFixed(2)}</td>
     </tr>`).join('');
 
-  // ── Add extra items ──
   if (snap.extraItems && snap.extraItems.length > 0) {
     for (const item of snap.extraItems) {
       const price = item.sellPrice || 0;
@@ -108,7 +106,7 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
       const itemTotal = price * qty;
       itemsRows += `
         <tr>
-          <td>🛒 ${item.name || 'Extra Item'}</td>
+          <td>${item.name || 'Extra Item'}</td>
           <td style="text-align:center;">${qty}</td>
           <td style="text-align:right;">${shopSettings.currency} ${price.toFixed(2)}</td>
           <td style="text-align:right;">${shopSettings.currency} ${itemTotal.toFixed(2)}</td>
@@ -116,7 +114,6 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
     }
   }
 
-  // ── QR Code Image ──
   const qrImage = qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code" />` : '<p>QR Code unavailable</p>';
 
   return `
@@ -141,17 +138,6 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         padding: 30px;
         border-radius: 12px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      }
-      .copy-label { 
-        text-align:center; 
-        font-weight:bold; 
-        background:#2c3e50; 
-        color:#fff; 
-        padding:8px; 
-        margin-bottom:15px; 
-        border-radius:4px;
-        font-size:14px;
-        letter-spacing:1px;
       }
       .header { 
         text-align:center; 
@@ -268,20 +254,10 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         font-weight:bold;
         text-align:center;
       }
-      .style-section {
-        margin-top:8px;
-        font-size:11px;
-        color:#555;
-        text-align:center;
-        background:#f8f9fa;
-        padding:6px;
-        border-radius:4px;
-      }
       .clearfix { clear:both; }
       @media print {
         body { background:white; padding:10px; }
         .bill-container { box-shadow:none; padding:10px; }
-        .copy-label { background:#2c3e50 !important; color:white !important; }
         table.items th { background:#2c3e50 !important; color:white !important; }
         .qr-block img { border:1px solid #ddd; }
       }
@@ -300,7 +276,6 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
   </head>
   <body>
     <div class="bill-container">
-      <div class="copy-label">${bill.copyLabel || 'BILL'}</div>
       
       <div class="header">
         <h2>${shopSettings.shopName || 'Saad bin Shalwah'}</h2>
@@ -348,24 +323,22 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
 
       <div style="clear:both;"></div>
 
-      <!-- ═══════════════════════════════════════════════════════════════ -->
-      <!-- ── MEASUREMENTS SECTION ── -->
-      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!-- MEASUREMENTS SECTION (NO ICONS) -->
       ${showMeasurements ? `
       <div class="measurement-section">
-        <h4 style="margin:0 0 8px 0; color:#2c3e50;">📏 Measurements</h4>
+        <h4 style="margin:0 0 8px 0; color:#2c3e50;">Measurements</h4>
         ${measurementBlockHTML(snap)}
         
         ${snap.extraItems && snap.extraItems.length > 0 ? `
         <div style="margin-top:8px; background:#f8f9fa; padding:8px; border-radius:4px;">
-          <strong>🛒 Extra Items:</strong>
+          <strong>Extra Items:</strong>
           ${snap.extraItems.map(item => `${item.name || 'Item'} (x${item.quantity || 1}) - ${shopSettings.currency} ${((item.sellPrice || 0) * (item.quantity || 1)).toFixed(2)}`).join('<br>')}
         </div>` : ''}
         
         <!-- Shirt Style -->
         ${snap && (snap.pocketStyle || snap.frontStyle || snap.nameEmbroidery || snap.buttonSize || snap.cuffStyle || snap.pleats || snap.chestStyle) ? `
         <div style="margin-top:8px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
-          <strong>👔 Shirt Style:</strong>
+          <strong>Shirt Style:</strong>
           ${[
             snap.pocketStyle ? `Pocket: ${snap.pocketStyle}` : '',
             snap.pocketCut ? `Cut: ${snap.pocketCut}` : '',
@@ -384,7 +357,7 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         <!-- Pant Style -->
         ${snap && (snap.pantWaistStyle || snap.pantBottomStyle || snap.pantPocketStyle) ? `
         <div style="margin-top:6px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
-          <strong>👖 Pant Style:</strong>
+          <strong>Pant Style:</strong>
           ${[
             snap.pantWaistStyle ? `Waist: ${snap.pantWaistStyle}` : '',
             snap.pantBottomStyle ? `Bottom: ${snap.pantBottomStyle}` : '',
@@ -395,20 +368,18 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         <!-- Cloth Label -->
         ${snap.clothLabel ? `
         <div style="margin-top:6px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
-          <strong>🏷️ Cloth Label:</strong> ${snap.clothLabel} ${snap.clothLabelOther ? `(${snap.clothLabelOther})` : ''}
+          <strong>Cloth Label:</strong> ${snap.clothLabel} ${snap.clothLabelOther ? `(${snap.clothLabelOther})` : ''}
         </div>` : ''}
       </div>` : ''}
 
-      <!-- ═══════════════════════════════════════════════════════════════ -->
-      <!-- ── QR CODE BLOCK ── -->
-      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!-- QR CODE BLOCK (NO ICON) -->
       <div class="qr-block">
         ${qrImage}
-        <div class="qr-label">📱 Scan to view this bill online</div>
+        <div class="qr-label">Scan to view this bill online</div>
       </div>
 
       <div class="footer">
-        ${shopSettings.thankYouMessage || 'Thank you for your business!'}
+        ${shopSettings.thankYouMessage || 'Thank you for your business! We look forward to serving you again.'}
       </div>
     </div>
   </body>

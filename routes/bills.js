@@ -8,14 +8,13 @@ const { protect } = require('../middleware/auth');
 const { generatePDF } = require('../utils/pdfGenerator');
 const { sendBillEmail } = require('../utils/emailService');
 
-// Helper: Get or create settings
+// ── Helpers ──
 const getSettings = async () => {
   let settings = await Settings.findOne();
   if (!settings) settings = await Settings.create({});
   return settings;
 };
 
-// Helper: Generate next bill number
 const getNextBillNumber = async (settings) => {
   if (settings.billNumberFormat === 'auto') {
     const counter = settings.billNumberCounter || 1000;
@@ -24,6 +23,16 @@ const getNextBillNumber = async (settings) => {
     return `${settings.billNumberPrefix}${counter}`;
   }
   return null;
+};
+
+const generateOrderNumber = async () => {
+  const settings = await Settings.findOneAndUpdate(
+    {},
+    { $inc: { orderNumberCounter: 1 } },
+    { new: true, upsert: true }
+  );
+  const prefix = settings.billNumberPrefix || 'ORD';
+  return `${prefix}-${settings.orderNumberCounter}`;
 };
 
 // @GET /api/bills
@@ -63,21 +72,22 @@ router.post('/', protect, async (req, res) => {
     const settings = await getSettings();
     const billData = { ...req.body };
 
-    // ── FIX #1: customer aur items ko khud validate karo pehle hi, taaki
-    // Mongoose ka raw/ugly ValidationError frontend tak na jaaye. Ab user
-    // ko exactly pata chalega ki kya missing hai. ──
-    if (!billData.customer) {
+    // ── Validation ──
+    // Quick Sale: customer optional, Normal: customer required
+    if (!billData.isQuickSale && !billData.customer) {
       return res.status(400).json({
         success: false,
         message: 'Please select a customer before creating the bill',
       });
     }
+    
     if (!Array.isArray(billData.items) || billData.items.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'Add at least one bill item',
       });
     }
+    
     const hasEmptyDescription = billData.items.some(
       (i) => !i.description || `${i.description}`.trim() === ''
     );
@@ -88,11 +98,11 @@ router.post('/', protect, async (req, res) => {
       });
     }
 
-    // Auto bill number
+    // ── Auto bill number ──
     if (!billData.billNumber || billData.billNumber === 'auto') {
       billData.billNumber = await getNextBillNumber(settings);
     }
-    // Check duplicate
+    
     const exists = await Bill.findOne({ billNumber: billData.billNumber });
     if (exists) {
       return res.status(400).json({
@@ -101,38 +111,33 @@ router.post('/', protect, async (req, res) => {
       });
     }
 
-    // Use VAT from settings if not provided
     if (billData.vatPercent === undefined || billData.vatPercent === null) {
       billData.vatPercent = settings.vatPercent || 0;
     }
     billData.createdBy = req.user._id;
 
-    // ── FIX #2: customerEmail Bill schema me field nahi hai, isliye
-    // Bill.create() ko pass karne se pehle nikal lo — warna Mongoose usko
-    // silently ignore kar dega, lekin cleanliness ke liye explicit rakha ──
-    const customerEmailInput =
-      billData.customerEmail && `${billData.customerEmail}`.trim() !== ''
-        ? billData.customerEmail.trim()
-        : null;
-    delete billData.customerEmail;
+    // ── Generate Order Number ──
+    const orderNumber = await generateOrderNumber();
+    billData.orderNumber = orderNumber;
 
-    // Generate QR Code
-    const billUrl = `${process.env.FRONTEND_URL}/bill/${Date.now()}`;
-    const qrCode = await QRCode.toDataURL(billUrl);
+    // ── Generate QR Code ──
+    const backendUrl = process.env.BACKEND_URL || 'https://saad-bin-shalwah-management-backend.vercel.app';
+    const qrCode = await QRCode.toDataURL(`${backendUrl}/bill/${Date.now()}`);
     billData.qrCode = qrCode;
-    billData.qrUrl = billUrl;
+    billData.qrUrl = `${backendUrl}/bill/${Date.now()}`;
 
-    const bill = await Bill.create(billData);
+    // ── Create MAIN bill ──
+    const mainBill = await Bill.create(billData);
 
-    // Update bill with correct QR URL using actual ID
-    const actualUrl = `${process.env.FRONTEND_URL}/bill/${bill._id}`;
+    // ── Update main bill with correct QR URL ──
+    const actualUrl = `${backendUrl}/bill/${mainBill._id}`;
     const actualQR = await QRCode.toDataURL(actualUrl);
-    bill.qrCode = actualQR;
-    bill.qrUrl = actualUrl;
-    await bill.save();
+    mainBill.qrCode = actualQR;
+    mainBill.qrUrl = actualUrl;
+    await mainBill.save();
 
-    // Deduct stock for products
-    for (const item of bill.items) {
+    // ── Deduct stock for products ──
+    for (const item of mainBill.items) {
       if (item.itemType === 'product' && item.productId) {
         await Product.findByIdAndUpdate(item.productId, {
           $inc: { stockQty: -item.quantity }
@@ -140,41 +145,82 @@ router.post('/', protect, async (req, res) => {
       }
     }
 
-    // ── FIX #3: pehle sirf `customer.email` pe depend karta tha, jo
-    // Customer schema/form me store hi nahi hota — isliye invoice email
-    // kabhi jaata hi nahi tha. Ab manual `customerEmail` (jo Flutter se
-    // aata hai) ko priority di jaati hai, customer.email fallback rehta hai. ──
-    const populatedBill = await Bill.findById(bill._id).populate('customer');
-    const finalEmail = customerEmailInput || populatedBill.customer?.email;
+    let allBills = [mainBill];
+
+    // ── FIX: 4 copies for normal orders ──
+    if (!billData.isQuickSale) {
+      const copies = [
+        { copyLabel: 'Customer Copy' },
+        { copyLabel: 'Shop Copy' },
+        { copyLabel: 'Tailor/Cutting Copy' },
+        { copyLabel: 'Delivery Copy' }
+      ];
+
+      for (const copy of copies) {
+        const copyData = {
+          ...billData,
+          copyLabel: copy.copyLabel,
+          billGroupId: mainBill._id,
+          orderNumber: orderNumber,
+          measurementSnapshot: billData.measurementSnapshot,
+          billNumber: `${mainBill.billNumber}-${copy.copyLabel.charAt(0)}`,
+        };
+        
+        const copyQr = await QRCode.toDataURL(`${backendUrl}/bill/${Date.now()}`);
+        copyData.qrCode = copyQr;
+        copyData.qrUrl = `${backendUrl}/bill/${Date.now()}`;
+        
+        const newBill = await Bill.create(copyData);
+        
+        const copyActualUrl = `${backendUrl}/bill/${newBill._id}`;
+        const copyActualQR = await QRCode.toDataURL(copyActualUrl);
+        newBill.qrCode = copyActualQR;
+        newBill.qrUrl = copyActualUrl;
+        await newBill.save();
+        
+        allBills.push(newBill);
+      }
+    }
+
+    // ── Email ──
+    const customerEmailInput = billData.customerEmail && `${billData.customerEmail}`.trim() !== ''
+      ? billData.customerEmail.trim()
+      : null;
+    delete billData.customerEmail;
 
     let emailSent = false;
-    if (finalEmail) {
+    if (customerEmailInput) {
       try {
+        const populatedBill = await Bill.findById(mainBill._id).populate('customer');
         const pdfBuffer = await generatePDF(populatedBill, {
           shopName: settings.shopName,
           shopAddress: settings.shopAddress,
           shopPhone: settings.shopPhone,
           shopEmail: settings.shopEmail,
-          currency: settings.currency || 'AED',
+          currency: settings.currency || 'SAR',
           thankYouMessage: settings.thankYouMessage
         });
-        populatedBill.customerEmail = finalEmail;
+        populatedBill.customerEmail = customerEmailInput;
         const result = await sendBillEmail(populatedBill, pdfBuffer, settings);
         if (result && result.success !== false) {
-          bill.emailSent = true;
-          await bill.save();
+          mainBill.emailSent = true;
+          await mainBill.save();
           emailSent = true;
         }
       } catch (emailErr) {
         console.error('Email send error:', emailErr.message);
-        // Bill already ban chuka hai — email fail hone pe bhi bill
-        // creation fail nahi karte, sirf response me batate hain.
       }
     }
 
-    res.status(201).json({ success: true, bill, emailSent });
+    res.status(201).json({ 
+      success: true, 
+      bill: mainBill, 
+      bills: allBills, 
+      orderNumber,
+      emailSent 
+    });
+    
   } catch (err) {
-    // ── Mongoose validation errors ko readable bana do ──
     if (err.name === 'ValidationError') {
       const firstError = Object.values(err.errors)[0]?.message || err.message;
       return res.status(400).json({ success: false, message: firstError });
@@ -250,7 +296,7 @@ router.post('/:id/send-email', protect, async (req, res) => {
   }
 });
 
-// @GET /api/bills/:id/pdf - Download PDF
+// @GET /api/bills/:id/pdf
 router.get('/:id/pdf', protect, async (req, res) => {
   try {
     const settings = await getSettings();
