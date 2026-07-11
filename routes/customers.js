@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const Customer = require('../models/Customer');
+const Bill = require('../models/Bill'); // ← ADD THIS
 const { protect } = require('../middleware/auth');
 const cloudinary = require('../config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-
 // Multer + Cloudinary config for style images
 const storage = new CloudinaryStorage({
   cloudinary,
@@ -33,16 +33,33 @@ function cleanMeasurement(m) {
 }
 
 // @GET /api/customers
+// @GET /api/customers
 router.get('/', protect, async (req, res) => {
   try {
     const { search, filter, page = 1, limit = 20 } = req.query;
     let query = {};
+    
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } }
-      ];
+      // ── NEW: Search by Order Number (ORD-XXXX) ──
+      const isOrderNumber = search.toString().match(/^ORD-\d+$/i);
+      if (isOrderNumber) {
+        const bills = await Bill.find({ 
+          orderNumber: { $regex: search, $options: 'i' } 
+        });
+        const customerIds = bills.map(b => b.customer);
+        if (customerIds.length > 0) {
+          query._id = { $in: customerIds };
+        } else {
+          query['measurements.fullNameLabel'] = { $regex: search, $options: 'i' };
+        }
+      } else {
+        query.$or = [
+          { name: { $regex: search, $options: 'i' } },
+          { phone: { $regex: search, $options: 'i' } }
+        ];
+      }
     }
+    
     if (filter === 'pending') {
       query['measurements.isPending'] = true;
     } else if (filter === 'delivered') {
@@ -51,6 +68,7 @@ router.get('/', protect, async (req, res) => {
       query['measurements.isReady'] = true;
       query['measurements.isDelivered'] = { $ne: true };
     }
+    
     const total = await Customer.countDocuments(query);
     const customers = await Customer.find(query)
       .sort({ createdAt: -1 })

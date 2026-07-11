@@ -17,16 +17,69 @@ async function generateQrForBill(bill, backendBaseUrl) {
   }
 }
 
+// function measurementBlockHTML(m) {
+//   if (!m) return '';
+  
+//   let types = [];
+//   if (m.type) {
+//     if (Array.isArray(m.type)) {
+//       types = m.type;
+//     } else if (typeof m.type === 'string') {
+//       types = [m.type];
+//     }
+//   }
+  
+//   const hasShirt = types.includes('Shirt');
+//   const hasTrousers = types.includes('Trousers');
+
+//   let html = '';
+  
+//   if (hasShirt) {
+//     html += `
+//     <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">SHIRT MEASUREMENTS</td></tr>
+//     <tr>
+//       <td>Length: ${m.length ?? '-'}</td>
+//       <td>Chest: ${m.chest ?? '-'}</td>
+//       <td>Shoulder: ${m.shoulder ?? '-'}</td>
+//       <td>Sleeve: ${m.arm ?? '-'}</td>
+//     </tr>
+//     <tr>
+//       <td>Middle: ${m.middle ?? '-'}</td>
+//       <td>K.Back: ${m.kback ?? '-'}</td>
+//       <td>Neck: ${m.neck ?? '-'}</td>
+//       <td>Head: ${m.head ?? '-'}</td>
+//     </tr>`;
+//   }
+
+//   if (hasTrousers) {
+//     html += `
+//     <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">TROUSER MEASUREMENTS</td></tr>
+//     <tr>
+//       <td>Length: ${m.pantLength ?? '-'}</td>
+//       <td>Waist: ${m.waist ?? '-'}</td>
+//       <td>Hip: ${m.hip ?? '-'}</td>
+//       <td>Thigh: ${m.thigh ?? '-'}</td>
+//     </tr>
+//     <tr>
+//       <td>Knee: ${m.knee ?? '-'}</td>
+//       <td>Bottom: ${m.bottom ?? '-'}</td>
+//       <td>Round: ${m.round ?? '-'}</td>
+//       <td></td>
+//     </tr>`;
+//   }
+
+//   return html ? `
+//     <table style="width:100%; font-size:12px; border-collapse:collapse; margin-top:10px;" border="1" cellpadding="4">
+//       ${html}
+//     </table>` : '';
+// }
 function measurementBlockHTML(m) {
   if (!m) return '';
   
   let types = [];
   if (m.type) {
-    if (Array.isArray(m.type)) {
-      types = m.type;
-    } else if (typeof m.type === 'string') {
-      types = [m.type];
-    }
+    if (Array.isArray(m.type)) types = m.type;
+    else if (typeof m.type === 'string') types = [m.type];
   }
   
   const hasShirt = types.includes('Shirt');
@@ -34,44 +87,79 @@ function measurementBlockHTML(m) {
 
   let html = '';
   
+  // ── Cloth Label ──
+  if (m.clothLabel) {
+    html += `<div style="margin-bottom:6px; font-weight:bold;">Cloth Label: ${m.clothLabel}${m.clothLabelOther ? ' ('+m.clothLabelOther+')' : ''}</div>`;
+  }
+  
+  // ── Shirt Style ──
+  function shirtStyle(m) {
+    const styles = [];
+    if (m.pocketStyle) styles.push(`Pocket: ${m.pocketStyle}`);
+    if (m.pocketCut) styles.push(`Cut: ${m.pocketCut}`);
+    if (m.mobilePocket) styles.push(`Mobile: ${m.mobilePocket}`);
+    if (m.pocketClosure) styles.push(`Closure: ${m.pocketClosure}`);
+    if (m.frontStyle) styles.push(`Front: ${m.frontStyle}`);
+    if (m.nameEmbroidery) styles.push(`Embroidery: ${m.nameEmbroidery}`);
+    if (m.buttonSize) styles.push(`Button: ${m.buttonSize}`);
+    if (m.cuffStyle) styles.push(`Cuff: ${m.cuffStyle}`);
+    if (m.pleats) styles.push(`Pleats: ${m.pleats}`);
+    if (m.chestStyle) styles.push(`Chest: ${m.chestStyle}`);
+    if (m.napel) styles.push(`Napel: ${m.napel}`);
+    if (styles.length === 0) return '';
+    return `<div style="margin-top:4px; font-size:11px; color:#555;"><strong>Shirt Style:</strong> ${styles.join(' | ')}</div>`;
+  }
+  
+  function pantStyle(m) {
+    const styles = [];
+    if (m.pantWaistStyle) styles.push(`Waist: ${m.pantWaistStyle}`);
+    if (m.pantBottomStyle) styles.push(`Bottom: ${m.pantBottomStyle}`);
+    if (m.pantPocketStyle) styles.push(`Pocket: ${m.pantPocketStyle}`);
+    if (styles.length === 0) return '';
+    return `<div style="margin-top:4px; font-size:11px; color:#555;"><strong>Pant Style:</strong> ${styles.join(' | ')}</div>`;
+  }
+  
   if (hasShirt) {
     html += `
-    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">SHIRT MEASUREMENTS</td></tr>
-    <tr>
-      <td>Length: ${m.length ?? '-'}</td>
-      <td>Chest: ${m.chest ?? '-'}</td>
-      <td>Shoulder: ${m.shoulder ?? '-'}</td>
-      <td>Sleeve: ${m.arm ?? '-'}</td>
-    </tr>
-    <tr>
-      <td>Middle: ${m.middle ?? '-'}</td>
-      <td>K.Back: ${m.kback ?? '-'}</td>
-      <td>Neck: ${m.neck ?? '-'}</td>
-      <td>Head: ${m.head ?? '-'}</td>
-    </tr>`;
+    <table style="width:100%; font-size:12px; border-collapse:collapse; margin-top:6px;" border="1" cellpadding="4">
+      <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">SHIRT MEASUREMENTS</td></tr>
+      <tr>
+        <td>Length: ${m.length ?? '-'}</td>
+        <td>Chest: ${m.chest ?? '-'}</td>
+        <td>Shoulder: ${m.shoulder ?? '-'}</td>
+        <td>Sleeve: ${m.arm ?? '-'}</td>
+      </tr>
+      <tr>
+        <td>Middle: ${m.middle ?? '-'}</td>
+        <td>K.Back: ${m.kback ?? '-'}</td>
+        <td>Neck: ${m.neck ?? '-'}</td>
+        <td>Head: ${m.head ?? '-'}</td>
+      </tr>
+    </table>
+    ${shirtStyle(m)}`;
   }
 
   if (hasTrousers) {
     html += `
-    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">TROUSER MEASUREMENTS</td></tr>
-    <tr>
-      <td>Length: ${m.pantLength ?? '-'}</td>
-      <td>Waist: ${m.waist ?? '-'}</td>
-      <td>Hip: ${m.hip ?? '-'}</td>
-      <td>Thigh: ${m.thigh ?? '-'}</td>
-    </tr>
-    <tr>
-      <td>Knee: ${m.knee ?? '-'}</td>
-      <td>Bottom: ${m.bottom ?? '-'}</td>
-      <td>Round: ${m.round ?? '-'}</td>
-      <td></td>
-    </tr>`;
+    <table style="width:100%; font-size:12px; border-collapse:collapse; margin-top:6px;" border="1" cellpadding="4">
+      <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">TROUSER MEASUREMENTS</td></tr>
+      <tr>
+        <td>Length: ${m.pantLength ?? '-'}</td>
+        <td>Waist: ${m.waist ?? '-'}</td>
+        <td>Hip: ${m.hip ?? '-'}</td>
+        <td>Thigh: ${m.thigh ?? '-'}</td>
+      </tr>
+      <tr>
+        <td>Knee: ${m.knee ?? '-'}</td>
+        <td>Bottom: ${m.bottom ?? '-'}</td>
+        <td>Round: ${m.round ?? '-'}</td>
+        <td></td>
+      </tr>
+    </table>
+    ${pantStyle(m)}`;
   }
 
-  return html ? `
-    <table style="width:100%; font-size:12px; border-collapse:collapse; margin-top:10px;" border="1" cellpadding="4">
-      ${html}
-    </table>` : '';
+  return html;
 }
 
 function generateBillHTML(bill, shopSettings, qrDataUrl) {

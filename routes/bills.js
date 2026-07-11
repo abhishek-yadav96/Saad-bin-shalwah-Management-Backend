@@ -147,23 +147,29 @@ router.post('/', protect, async (req, res) => {
 
     let allBills = [mainBill];
 
-    // ── FIX: 4 copies for normal orders ──
+    // ═══════════════════════════════════════════════════════════════════
+    // ── FIX: Custom Copy Count (User se input aayega) ──
+    // ── Default: 4 copies, Quick Sale: sirf 1 copy ──
+    // ═══════════════════════════════════════════════════════════════════
     if (!billData.isQuickSale) {
-      const copies = [
-        { copyLabel: 'Customer Copy' },
-        { copyLabel: 'Shop Copy' },
-        { copyLabel: 'Tailor/Cutting Copy' },
-        { copyLabel: 'Delivery Copy' }
-      ];
-
-      for (const copy of copies) {
+      // ── Get copy count from user input (default 4) ──
+      const copyCount = billData.copyCount || 4;
+      
+      // ── Copy labels and icons ──
+      const copyLabels = ['Customer Copy', 'Shop Copy', 'Tailor/Cutting Copy', 'Delivery Copy'];
+      const copyIcons = ['C', 'S', 'T', 'D'];
+      
+      // ── Max copies limited to 4 ──
+      const maxCopies = Math.min(copyCount, copyLabels.length);
+      
+      for (let i = 0; i < maxCopies; i++) {
         const copyData = {
           ...billData,
-          copyLabel: copy.copyLabel,
+          copyLabel: copyLabels[i],
           billGroupId: mainBill._id,
           orderNumber: orderNumber,
           measurementSnapshot: billData.measurementSnapshot,
-          billNumber: `${mainBill.billNumber}-${copy.copyLabel.charAt(0)}`,
+          billNumber: `${mainBill.billNumber}-${copyIcons[i]}`,
         };
         
         const copyQr = await QRCode.toDataURL(`${backendUrl}/bill/${Date.now()}`);
