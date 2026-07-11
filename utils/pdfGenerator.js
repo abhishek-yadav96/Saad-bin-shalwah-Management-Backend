@@ -2,7 +2,6 @@ const moment = require('moment');
 const QRCode = require('qrcode');
 
 // ── FIX #23: QR ab hamesha BACKEND url ko encode karta hai (frontend nahi) ──
-// backendBaseUrl example: https://your-api.vercel.app
 async function generateQrForBill(bill, backendBaseUrl) {
   const url = `${backendBaseUrl}/bill/${bill._id}`;
   const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 220 });
@@ -11,40 +10,155 @@ async function generateQrForBill(bill, backendBaseUrl) {
 
 function measurementBlockHTML(m) {
   if (!m) return '';
-  const shirtRows = (m.type || []).includes('Shirt') ? `
-    <tr><td colspan="4"><strong>Shirt Measurement</strong></td></tr>
+  
+  // ── FIX: Support both array and string type ──
+  let types = [];
+  if (m.type) {
+    if (Array.isArray(m.type)) {
+      types = m.type;
+    } else if (typeof m.type === 'string') {
+      types = [m.type];
+    }
+  }
+  
+  const hasShirt = types.includes('Shirt');
+  const hasTrousers = types.includes('Trousers');
+
+  let html = '';
+  
+  if (hasShirt) {
+    html += `
+    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">SHIRT MEASUREMENTS</td></tr>
     <tr>
-      <td>Length: ${m.length ?? '-'}</td><td>Chest: ${m.chest ?? '-'}</td>
-      <td>Shoulder: ${m.shoulder ?? '-'}</td><td>Arm: ${m.arm ?? '-'}</td>
+      <td>Length: ${m.length ?? '-'}</td>
+      <td>Chest: ${m.chest ?? '-'}</td>
+      <td>Shoulder: ${m.shoulder ?? '-'}</td>
+      <td>Sleeve: ${m.arm ?? '-'}</td>
     </tr>
     <tr>
-      <td>Middle: ${m.middle ?? '-'}</td><td>K.Back: ${m.kback ?? '-'}</td>
-      <td>Neck: ${m.neck ?? '-'}</td><td>Head: ${m.head ?? '-'}</td>
-    </tr>` : '';
+      <td>Middle: ${m.middle ?? '-'}</td>
+      <td>K.Back: ${m.kback ?? '-'}</td>
+      <td>Neck: ${m.neck ?? '-'}</td>
+      <td>Head: ${m.head ?? '-'}</td>
+    </tr>`;
+  }
 
-  const trouserRows = (m.type || []).includes('Trousers') ? `
-    <tr><td colspan="4"><strong>Trouser Measurement</strong></td></tr>
+  if (hasTrousers) {
+    html += `
+    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">TROUSER MEASUREMENTS</td></tr>
     <tr>
-      <td>Length: ${m.pantLength ?? '-'}</td><td>Waist: ${m.waist ?? '-'}</td>
-      <td>Hip: ${m.hip ?? '-'}</td><td>Thigh: ${m.thigh ?? '-'}</td>
+      <td>Length: ${m.pantLength ?? '-'}</td>
+      <td>Waist: ${m.waist ?? '-'}</td>
+      <td>Hip: ${m.hip ?? '-'}</td>
+      <td>Thigh: ${m.thigh ?? '-'}</td>
     </tr>
     <tr>
-      <td>Knee: ${m.knee ?? '-'}</td><td>Bottom: ${m.bottom ?? '-'}</td>
-      <td>Round: ${m.round ?? '-'}</td><td></td>
-    </tr>` : '';
+      <td>Knee: ${m.knee ?? '-'}</td>
+      <td>Bottom: ${m.bottom ?? '-'}</td>
+      <td>Round: ${m.round ?? '-'}</td>
+      <td></td>
+    </tr>`;
+  }
 
-  return `
+  return html ? `
     <table style="width:100%; font-size:12px; border-collapse:collapse; margin-top:10px;" border="1" cellpadding="4">
-      ${shirtRows}
-      ${trouserRows}
-    </table>`;
+      ${html}
+    </table>` : '';
+}
+
+// ── Shirt Style Display ──
+function shirtStyleBlock(m) {
+  if (!m) return '';
+  const styles = [];
+  if (m.napel) styles.push(`Napel: ${m.napel}`);
+  if (m.pocketStyle) styles.push(`Pocket: ${m.pocketStyle}`);
+  if (m.pocketCut) styles.push(`Pocket Cut: ${m.pocketCut}`);
+  if (m.mobilePocket) styles.push(`Mobile Pocket: ${m.mobilePocket}`);
+  if (m.pocketClosure) styles.push(`Closure: ${m.pocketClosure}`);
+  if (m.frontStyle) styles.push(`Front: ${m.frontStyle}`);
+  if (m.nameEmbroidery) styles.push(`Name Embroidery: ${m.nameEmbroidery}`);
+  if (m.buttonSize) styles.push(`Button: ${m.buttonSize}`);
+  if (m.cuffStyle) styles.push(`Cuff: ${m.cuffStyle}`);
+  if (m.pleats) styles.push(`Pleats: ${m.pleats}`);
+  if (m.chestStyle) styles.push(`Chest: ${m.chestStyle}`);
+  
+  if (styles.isEmpty) return '';
+  
+  return `
+    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">SHIRT STYLE</td></tr>
+    <tr>
+      <td colspan="4" style="text-align:center; font-size:11px;">${styles.join(' | ')}</td>
+    </tr>`;
+}
+
+// ── Pant Style Display ──
+function pantStyleBlock(m) {
+  if (!m) return '';
+  const styles = [];
+  if (m.pantWaistStyle) styles.push(`Waist: ${m.pantWaistStyle}`);
+  if (m.pantBottomStyle) styles.push(`Bottom: ${m.pantBottomStyle}`);
+  if (m.pantPocketStyle) styles.push(`Pocket: ${m.pantPocketStyle}`);
+  
+  if (styles.isEmpty) return '';
+  
+  return `
+    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">PANT STYLE</td></tr>
+    <tr>
+      <td colspan="4" style="text-align:center; font-size:11px;">${styles.join(' | ')}</td>
+    </tr>`;
+}
+
+// ── Extra Items Display ──
+function extraItemsBlock(m) {
+  if (!m || !m.extraItems || m.extraItems.length === 0) return '';
+  
+  let rows = '';
+  let total = 0;
+  for (const item of m.extraItems) {
+    const price = item.sellPrice || 0;
+    const qty = item.quantity || 1;
+    const itemTotal = price * qty;
+    total += itemTotal;
+    rows += `
+      <tr>
+        <td>${item.name || 'Item'}</td>
+        <td style="text-align:center;">${qty}</td>
+        <td style="text-align:right;">${price.toFixed(2)}</td>
+        <td style="text-align:right;">${itemTotal.toFixed(2)}</td>
+      </tr>`;
+  }
+  
+  return `
+    <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">EXTRA ITEMS</td></tr>
+    ${rows}
+    <tr>
+      <td colspan="3" style="text-align:right; font-weight:bold;">Extra Items Total:</td>
+      <td style="text-align:right; font-weight:bold;">${total.toFixed(2)}</td>
+    </tr>`;
 }
 
 function generateBillHTML(bill, shopSettings, qrDataUrl) {
-  const showMeasurements = bill.copyLabel === 'Tailor/Cutting Copy' || bill.copyLabel === 'Shop Copy';
+  // ── Show measurements on ALL copies, not just Tailor/Cutting ──
+  // Client wants everything visible on public bill
+  const showMeasurements = true;
+  const snap = bill.measurementSnapshot || {};
 
-  // NOTE: purchasePrice is intentionally never read/rendered here — customer must never see it.
-  const itemsRows = bill.items.map((it) => `
+  // ── Calculate extra items total ──
+  let extraTotal = 0;
+  if (snap.extraItems && snap.extraItems.length > 0) {
+    for (const item of snap.extraItems) {
+      const price = item.sellPrice || 0;
+      const qty = item.quantity || 1;
+      extraTotal += price * qty;
+    }
+  }
+
+  // ── Grand total with extra items ──
+  const grandTotal = (bill.total || 0) + extraTotal;
+  const remaining = grandTotal - (bill.advancePaid || 0);
+
+  // ── Items rows (including extra items if present) ──
+  let itemsRows = bill.items.map((it) => `
     <tr>
       <td>${it.description}</td>
       <td style="text-align:center;">${it.quantity}</td>
@@ -52,76 +166,308 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
       <td style="text-align:right;">${shopSettings.currency} ${it.total.toFixed(2)}</td>
     </tr>`).join('');
 
+  // ── Add extra items to bill items table ──
+  if (snap.extraItems && snap.extraItems.length > 0) {
+    for (const item of snap.extraItems) {
+      const price = item.sellPrice || 0;
+      const qty = item.quantity || 1;
+      const itemTotal = price * qty;
+      itemsRows += `
+        <tr>
+          <td>🛒 ${item.name || 'Extra Item'}</td>
+          <td style="text-align:center;">${qty}</td>
+          <td style="text-align:right;">${shopSettings.currency} ${price.toFixed(2)}</td>
+          <td style="text-align:right;">${shopSettings.currency} ${itemTotal.toFixed(2)}</td>
+        </tr>`;
+    }
+  }
+
   return `
   <!DOCTYPE html>
   <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bill ${bill.billNumber}</title>
     <style>
-      body { font-family: Arial, sans-serif; padding: 20px; color: #222; }
-      .header { text-align:center; border-bottom:2px solid #2c3e50; padding-bottom:10px; margin-bottom:15px; }
-      .meta { font-size:13px; margin-bottom:10px; }
-      .meta td { padding: 2px 8px 2px 0; }
-      table.items { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
-      table.items th, table.items td { border:1px solid #ccc; padding:6px; }
-      .totals { margin-top:10px; float:right; width:260px; font-size:13px; }
-      .totals td { padding:3px 6px; }
-      .copy-label { text-align:center; font-weight:bold; background:#2c3e50; color:#fff; padding:4px; margin-bottom:10px; }
-      .qr-block { text-align:center; margin-top:30px; clear:both; }
-      .qr-block img { width:120px; height:120px; }
+      * { box-sizing: border-box; }
+      body { 
+        font-family: Arial, sans-serif; 
+        padding: 20px; 
+        color: #222; 
+        max-width: 800px; 
+        margin: 0 auto;
+        background: #f5f5f5;
+      }
+      .bill-container {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      }
+      .copy-label { 
+        text-align:center; 
+        font-weight:bold; 
+        background:#2c3e50; 
+        color:#fff; 
+        padding:8px; 
+        margin-bottom:15px; 
+        border-radius:4px;
+        font-size:14px;
+        letter-spacing:1px;
+      }
+      .header { 
+        text-align:center; 
+        border-bottom:2px solid #2c3e50; 
+        padding-bottom:15px; 
+        margin-bottom:20px; 
+      }
+      .header h2 { 
+        margin:0; 
+        color:#2c3e50; 
+        font-size:24px;
+      }
+      .header .sub { 
+        color:#666; 
+        font-size:14px; 
+        margin-top:4px;
+      }
+      .meta { 
+        width:100%; 
+        font-size:14px; 
+        margin-bottom:15px; 
+        border-collapse:collapse;
+      }
+      .meta td { 
+        padding: 4px 8px 4px 0; 
+        border-bottom:1px solid #eee;
+      }
+      .meta .label { 
+        color:#666; 
+        font-weight:600;
+        width:100px;
+      }
+      table.items { 
+        width:100%; 
+        border-collapse:collapse; 
+        font-size:13px; 
+        margin-top:10px; 
+      }
+      table.items th { 
+        background:#2c3e50; 
+        color:white; 
+        padding:8px; 
+        text-align:left; 
+      }
+      table.items th:last-child,
+      table.items td:last-child { text-align:right; }
+      table.items td { 
+        padding:6px 8px; 
+        border-bottom:1px solid #ddd; 
+      }
+      table.items tr:last-child td { border-bottom:none; }
+      .totals { 
+        margin-top:15px; 
+        width:100%; 
+        max-width:350px; 
+        float:right; 
+        font-size:14px; 
+        border-collapse:collapse;
+      }
+      .totals td { padding:4px 8px; }
+      .totals .total-row { font-weight:bold; font-size:16px; border-top:2px solid #2c3e50; }
+      .totals .remaining { 
+        font-weight:bold; 
+        font-size:16px; 
+        color: ${remaining > 0 ? '#e74c3c' : '#27ae60'};
+        border-top:2px solid ${remaining > 0 ? '#e74c3c' : '#27ae60'};
+      }
+      .qr-block { 
+        text-align:center; 
+        margin-top:30px; 
+        clear:both; 
+        padding-top:20px;
+        border-top:1px solid #ddd;
+      }
+      .qr-block img { 
+        width:130px; 
+        height:130px; 
+        border:1px solid #ddd;
+        border-radius:8px;
+        padding:8px;
+      }
+      .qr-label { 
+        font-size:11px; 
+        color:#666; 
+        margin-top:4px; 
+      }
+      .footer { 
+        text-align:center; 
+        margin-top:20px; 
+        font-style:italic; 
+        font-size:13px; 
+        color:#666; 
+      }
+      .measurement-section {
+        margin-top:15px;
+        clear:both;
+        border-top:1px solid #ddd;
+        padding-top:15px;
+      }
+      .measurement-section table {
+        width:100%;
+        font-size:12px;
+        border-collapse:collapse;
+        margin-top:8px;
+      }
+      .measurement-section table td {
+        padding:4px 8px;
+        border:1px solid #ddd;
+      }
+      .measurement-section table tr:first-child td {
+        background:#f0f0f0;
+        font-weight:bold;
+        text-align:center;
+      }
+      .style-section {
+        margin-top:8px;
+        font-size:11px;
+        color:#555;
+        text-align:center;
+        background:#f8f9fa;
+        padding:6px;
+        border-radius:4px;
+      }
+      .clearfix { clear:both; }
+      @media print {
+        body { background:white; padding:10px; }
+        .bill-container { box-shadow:none; padding:10px; }
+        .copy-label { background:#2c3e50 !important; color:white !important; }
+        table.items th { background:#2c3e50 !important; color:white !important; }
+      }
+      @media (max-width: 600px) {
+        body { padding:10px; }
+        .bill-container { padding:15px; }
+        .meta td { display:block; padding:2px 0; }
+        .meta td.label { width:auto; }
+        .totals { float:none; width:100%; max-width:100%; }
+        .qr-block img { width:100px; height:100px; }
+        table.items { font-size:12px; }
+        table.items th, table.items td { padding:4px; }
+        .header h2 { font-size:20px; }
+      }
     </style>
   </head>
   <body>
-    <div class="copy-label">${bill.copyLabel || 'Bill'}</div>
-    <div class="header">
-      <h2>${shopSettings.shopName}</h2>
-      <div>${shopSettings.shopAddress || ''}</div>
-      <div>${shopSettings.shopPhone || ''}</div>
-    </div>
+    <div class="bill-container">
+      <div class="copy-label">${bill.copyLabel || 'BILL'}</div>
+      
+      <div class="header">
+        <h2>${shopSettings.shopName || 'Saad bin Shalwah'}</h2>
+        <div class="sub">${shopSettings.shopAddress || ''}</div>
+        <div class="sub">${shopSettings.shopPhone || ''}</div>
+      </div>
 
-    <table class="meta">
-      <tr>
-        <td><strong>Bill No:</strong> ${bill.billNumber}</td>
-        <td><strong>Order No:</strong> ${bill.orderNumber || '-'}</td>
-      </tr>
-      <tr>
-        <td><strong>Date:</strong> ${moment(bill.billDate).format('DD MMM YYYY')}</td>
-        <td><strong>Time:</strong> ${moment(bill.billDate).format('hh:mm A')}</td>
-      </tr>
-      <tr>
-        <td><strong>Customer:</strong> ${bill.customerName}</td>
-        <td><strong>Mobile:</strong> ${bill.customerPhone || '-'}</td>
-      </tr>
-    </table>
-
-    <table class="items">
-      <thead>
-        <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
-      </thead>
-      <tbody>${itemsRows}</tbody>
-    </table>
-
-    <div class="totals">
-      <table style="width:100%;">
-        <tr><td>Subtotal</td><td style="text-align:right;">${shopSettings.currency} ${bill.subtotal.toFixed(2)}</td></tr>
-        ${bill.vatPercent ? `<tr><td>VAT (${bill.vatPercent}%)</td><td style="text-align:right;">${shopSettings.currency} ${bill.vatAmount.toFixed(2)}</td></tr>` : ''}
-        <tr><td><strong>Total</strong></td><td style="text-align:right;"><strong>${shopSettings.currency} ${bill.total.toFixed(2)}</strong></td></tr>
-        <tr><td>Advance Paid</td><td style="text-align:right;">${shopSettings.currency} ${bill.advancePaid.toFixed(2)}</td></tr>
-        <tr><td>Remaining</td><td style="text-align:right; color:#e74c3c;"><strong>${shopSettings.currency} ${bill.remaining.toFixed(2)}</strong></td></tr>
+      <table class="meta">
+        <tr>
+          <td class="label">Bill No:</td>
+          <td><strong>${bill.billNumber}</strong></td>
+          <td class="label">Order No:</td>
+          <td><strong>${bill.orderNumber || '-'}</strong></td>
+        </tr>
+        <tr>
+          <td class="label">Date:</td>
+          <td>${moment(bill.billDate).format('DD MMM YYYY')}</td>
+          <td class="label">Time:</td>
+          <td>${moment(bill.billDate).format('hh:mm A')}</td>
+        </tr>
+        <tr>
+          <td class="label">Customer:</td>
+          <td><strong>${bill.customerName}</strong></td>
+          <td class="label">Mobile:</td>
+          <td>${bill.customerPhone || '-'}</td>
+        </tr>
       </table>
+
+      <table class="items">
+        <thead>
+          <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+        </thead>
+        <tbody>${itemsRows}</tbody>
+      </table>
+
+      <div style="clear:both;"></div>
+      
+      <table class="totals">
+        <tr><td>Subtotal</td><td style="text-align:right;">${shopSettings.currency} ${(bill.subtotal || 0).toFixed(2)}</td></tr>
+        ${bill.vatPercent ? `<tr><td>VAT (${bill.vatPercent}%)</td><td style="text-align:right;">${shopSettings.currency} ${(bill.vatAmount || 0).toFixed(2)}</td></tr>` : ''}
+        <tr class="total-row"><td>Total</td><td style="text-align:right;">${shopSettings.currency} ${grandTotal.toFixed(2)}</td></tr>
+        <tr><td>Advance Paid</td><td style="text-align:right;">${shopSettings.currency} ${(bill.advancePaid || 0).toFixed(2)}</td></tr>
+        <tr class="remaining"><td>Remaining</td><td style="text-align:right;">${shopSettings.currency} ${remaining.toFixed(2)}</td></tr>
+      </table>
+
+      <div style="clear:both;"></div>
+
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      <!-- ── MEASUREMENTS SECTION - SHOW ALL ON PUBLIC BILL ── -->
+      <!-- ═══════════════════════════════════════════════════════════════ -->
+      ${showMeasurements ? `
+      <div class="measurement-section">
+        <h4 style="margin:0 0 8px 0; color:#2c3e50;">📏 Measurements</h4>
+        ${measurementBlockHTML(snap)}
+        
+        ${snap.extraItems && snap.extraItems.length > 0 ? `
+        <div style="margin-top:8px; background:#f8f9fa; padding:8px; border-radius:4px;">
+          <strong>🛒 Extra Items:</strong>
+          ${snap.extraItems.map(item => `${item.name || 'Item'} (x${item.quantity || 1}) - ${shopSettings.currency} ${((item.sellPrice || 0) * (item.quantity || 1)).toFixed(2)}`).join('<br>')}
+        </div>` : ''}
+        
+        <!-- Shirt Style -->
+        ${snap && (snap.pocketStyle || snap.frontStyle || snap.nameEmbroidery || snap.buttonSize || snap.cuffStyle || snap.pleats || snap.chestStyle) ? `
+        <div style="margin-top:8px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
+          <strong>👔 Shirt Style:</strong>
+          ${[
+            snap.pocketStyle ? `Pocket: ${snap.pocketStyle}` : '',
+            snap.pocketCut ? `Cut: ${snap.pocketCut}` : '',
+            snap.mobilePocket ? `Mobile: ${snap.mobilePocket}` : '',
+            snap.pocketClosure ? `Closure: ${snap.pocketClosure}` : '',
+            snap.frontStyle ? `Front: ${snap.frontStyle}` : '',
+            snap.nameEmbroidery ? `Embroidery: ${snap.nameEmbroidery}` : '',
+            snap.buttonSize ? `Button: ${snap.buttonSize}` : '',
+            snap.cuffStyle ? `Cuff: ${snap.cuffStyle}` : '',
+            snap.pleats ? `Pleats: ${snap.pleats}` : '',
+            snap.chestStyle ? `Chest: ${snap.chestStyle}` : '',
+            snap.napel ? `Napel: ${snap.napel}` : ''
+          ].filter(Boolean).join(' | ')}
+        </div>` : ''}
+        
+        <!-- Pant Style -->
+        ${snap && (snap.pantWaistStyle || snap.pantBottomStyle || snap.pantPocketStyle) ? `
+        <div style="margin-top:6px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
+          <strong>👖 Pant Style:</strong>
+          ${[
+            snap.pantWaistStyle ? `Waist: ${snap.pantWaistStyle}` : '',
+            snap.pantBottomStyle ? `Bottom: ${snap.pantBottomStyle}` : '',
+            snap.pantPocketStyle ? `Pocket: ${snap.pantPocketStyle}` : ''
+          ].filter(Boolean).join(' | ')}
+        </div>` : ''}
+        
+        <!-- Cloth Label -->
+        ${snap.clothLabel ? `
+        <div style="margin-top:6px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
+          <strong>🏷️ Cloth Label:</strong> ${snap.clothLabel} ${snap.clothLabelOther ? `(${snap.clothLabelOther})` : ''}
+        </div>` : ''}
+      </div>` : ''}
+
+      <div class="qr-block">
+        <img src="${qrDataUrl}" alt="Scan to view bill online" />
+        <div class="qr-label">Scan to view this bill online</div>
+      </div>
+
+      <div class="footer">
+        ${shopSettings.thankYouMessage || 'Thank you for your business!'}
+      </div>
     </div>
-
-    ${showMeasurements ? measurementBlockHTML(bill.measurementSnapshot) : ''}
-
-    <div class="qr-block">
-      <img src="${qrDataUrl}" alt="Scan for digital bill" />
-      <div style="font-size:11px; color:#666;">Scan to view this bill online</div>
-    </div>
-
-    <p style="text-align:center; margin-top:20px; font-style:italic; font-size:12px;">
-      ${shopSettings.thankYouMessage || 'Thank you for your business!'}
-    </p>
   </body>
   </html>`;
 }
