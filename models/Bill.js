@@ -29,6 +29,11 @@ const billSchema = new mongoose.Schema({
   customerName: { type: String, required: true },
   customerPhone: { type: String },
 
+  // ── Dress Name (uniform/org type this order is for) + promised delivery date ──
+  // Dono customer copy aur cutting copy par print hote hain.
+  dressName: { type: String },
+  deliveryDate: { type: Date },
+
   // ── FIX #24: cutting ke liye shirt/trouser measurement snapshot bill par ──
   measurementSnapshot: { type: mongoose.Schema.Types.Mixed },
 

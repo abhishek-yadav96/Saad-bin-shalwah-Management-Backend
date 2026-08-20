@@ -612,6 +612,9 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
   const grandTotal = (bill.total || 0) + extraTotal;
   const remaining = grandTotal - (bill.advancePaid || 0);
 
+  const dressName = bill.dressName || '';
+  const deliveryDateStr = bill.deliveryDate ? moment(bill.deliveryDate).format('DD MMM YYYY') : '';
+
   let itemsRows = bill.items.map((it) => `
     <tr>
       <td>${it.description}</td>
@@ -661,54 +664,143 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         Amount details not shown on this copy
       </div>`;
 
+  // ── Shirt / Pant style line builders (reused by both layouts) ──
+  function shirtStyleLine(m) {
+    const parts = [
+      m.pocketStyle ? `Pocket: ${m.pocketStyle}` : '',
+      m.pocketCut ? `Cut: ${m.pocketCut}` : '',
+      m.mobilePocket ? `Mobile: ${m.mobilePocket}` : '',
+      m.pocketClosure ? `Closure: ${m.pocketClosure}` : '',
+      m.frontStyle ? `Front: ${m.frontStyle}` : '',
+      m.nameEmbroidery ? `Embroidery: ${m.nameEmbroidery}` : '',
+      m.buttonSize ? `Button: ${m.buttonSize}` : '',
+      m.cuffStyle ? `Cuff: ${m.cuffStyle}` : '',
+      m.pleats ? `Pleats: ${m.pleats}` : '',
+      m.chestStyle ? `Chest: ${m.chestStyle}` : '',
+      m.napel ? `Napel: ${m.napel}` : ''
+    ].filter(Boolean).join(' | ');
+    return parts ? `<div style="margin-top:4px; font-size:11px; color:#555;"><strong>Shirt Style:</strong> ${parts}</div>` : '';
+  }
+  function pantStyleLine(m) {
+    const parts = [
+      m.pantWaistStyle ? `Waist: ${m.pantWaistStyle}` : '',
+      m.pantBottomStyle ? `Bottom: ${m.pantBottomStyle}` : '',
+      m.pantPocketStyle ? `Pocket: ${m.pantPocketStyle}` : ''
+    ].filter(Boolean).join(' | ');
+    return parts ? `<div style="margin-top:4px; font-size:11px; color:#555;"><strong>Pant Style:</strong> ${parts}</div>` : '';
+  }
+
+  let types = [];
+  if (snap.type) {
+    if (Array.isArray(snap.type)) types = snap.type;
+    else if (typeof snap.type === 'string') types = [snap.type];
+  }
+  const hasShirt = types.includes('Shirt');
+  const hasTrousers = types.includes('Trousers');
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── TAILOR/CUTTING COPY: TWO SELF-CONTAINED CUT TAGS ──
+  // Har tag apne aap me complete hai (Bill#, Order#, Dress Name,
+  // Delivery Date dobara print hote hain) taake tailor use fabric ke
+  // shirt-piece aur pant-piece par alag alag pin/cut karke laga sake.
+  // ══════════════════════════════════════════════════════════════════
+  function cutTagHTML(partLabel, bodyHTML) {
+    return `
+      <div class="cut-tag">
+        <div class="cut-tag-title">${partLabel}</div>
+        <table class="cut-tag-meta">
+          <tr><td>Bill:</td><td><strong>${bill.billNumber}</strong></td></tr>
+          <tr><td>Order:</td><td><strong>${bill.orderNumber || '-'}</strong></td></tr>
+          ${dressName ? `<tr><td>Dress Name:</td><td><strong>${dressName}</strong></td></tr>` : ''}
+        </table>
+        <div class="cut-tag-heading">MEASUREMENTS</div>
+        ${bodyHTML}
+        ${deliveryDateStr ? `<div class="cut-tag-delivery">Delivery Date: <strong>${deliveryDateStr}</strong></div>` : ''}
+      </div>`;
+  }
+
+  function shirtTableHTML(m) {
+    return `
+      <table style="width:100%; font-size:12px; border-collapse:collapse; margin-top:6px;" border="1" cellpadding="4">
+        <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">SHIRT</td></tr>
+        <tr>
+          <td>Length: ${m.length ?? '-'}</td>
+          <td>Chest: ${m.chest ?? '-'}</td>
+          <td>Shoulder: ${m.shoulder ?? '-'}</td>
+          <td>Sleeve: ${m.arm ?? '-'}</td>
+        </tr>
+        <tr>
+          <td>Middle: ${m.middle ?? '-'}</td>
+          <td>K.Back: ${m.kback ?? '-'}</td>
+          <td>Neck: ${m.neck ?? '-'}</td>
+          <td>Head: ${m.head ?? '-'}</td>
+        </tr>
+      </table>
+      ${shirtStyleLine(m)}`;
+  }
+
+  function pantTableHTML(m) {
+    return `
+      <table style="width:100%; font-size:12px; border-collapse:collapse; margin-top:6px;" border="1" cellpadding="4">
+        <tr><td colspan="4" style="background:#f0f0f0; font-weight:bold; text-align:center;">PANT</td></tr>
+        <tr>
+          <td>Length: ${m.pantLength ?? '-'}</td>
+          <td>Waist: ${m.waist ?? '-'}</td>
+          <td>Hip: ${m.hip ?? '-'}</td>
+          <td>Thigh: ${m.thigh ?? '-'}</td>
+        </tr>
+        <tr>
+          <td>Knee: ${m.knee ?? '-'}</td>
+          <td>Bottom: ${m.bottom ?? '-'}</td>
+          <td>Round: ${m.round ?? '-'}</td>
+          <td></td>
+        </tr>
+      </table>
+      ${pantStyleLine(m)}`;
+  }
+
+  const clothLabelLine = snap.clothLabel
+    ? `<div style="margin-bottom:6px; font-weight:bold;">Cloth Label: ${snap.clothLabel}${snap.clothLabelOther ? ' (' + snap.clothLabelOther + ')' : ''}</div>`
+    : '';
+
+  let tailorCutHTML = '';
+  if (hasShirt) tailorCutHTML += cutTagHTML('✂ SHIRT PIECE — CUT HERE', clothLabelLine + shirtTableHTML(snap));
+  if (hasTrousers) tailorCutHTML += cutTagHTML('✂ PANT PIECE — CUT HERE', clothLabelLine + pantTableHTML(snap));
+  if (!hasShirt && !hasTrousers) {
+    // Fallback: type na ho to purana continuous block dikhado
+    tailorCutHTML = cutTagHTML('✂ CUT HERE', clothLabelLine + measurementBlockHTML(snap));
+  }
+
   // ── Measurements block (hidden for Customer Copy) ──
-  const measurementsBlockHTML = (showMeasurements && showMeasurementsSection) ? `
+  const measurementsBlockHTML = (showMeasurements && showMeasurementsSection) ? (
+    isTailorCopy ? `
+      <div class="measurement-section">
+        ${tailorCutHTML}
+      </div>`
+      : `
       <div class="measurement-section">
         <h4 style="margin:0 0 8px 0; color:#2c3e50;">Measurements</h4>
         ${measurementBlockHTML(snap)}
-        
+
         ${snap.extraItems && snap.extraItems.length > 0 ? `
         <div style="margin-top:8px; background:#f8f9fa; padding:8px; border-radius:4px;">
           <strong>Extra Items:</strong>
           ${snap.extraItems.map(item => `${item.name || 'Item'} (x${item.quantity || 1})`).join('<br>')}
         </div>` : ''}
-        
+
         <!-- Shirt Style -->
-        ${snap && (snap.pocketStyle || snap.frontStyle || snap.nameEmbroidery || snap.buttonSize || snap.cuffStyle || snap.pleats || snap.chestStyle) ? `
-        <div style="margin-top:8px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
-          <strong>Shirt Style:</strong>
-          ${[
-            snap.pocketStyle ? `Pocket: ${snap.pocketStyle}` : '',
-            snap.pocketCut ? `Cut: ${snap.pocketCut}` : '',
-            snap.mobilePocket ? `Mobile: ${snap.mobilePocket}` : '',
-            snap.pocketClosure ? `Closure: ${snap.pocketClosure}` : '',
-            snap.frontStyle ? `Front: ${snap.frontStyle}` : '',
-            snap.nameEmbroidery ? `Embroidery: ${snap.nameEmbroidery}` : '',
-            snap.buttonSize ? `Button: ${snap.buttonSize}` : '',
-            snap.cuffStyle ? `Cuff: ${snap.cuffStyle}` : '',
-            snap.pleats ? `Pleats: ${snap.pleats}` : '',
-            snap.chestStyle ? `Chest: ${snap.chestStyle}` : '',
-            snap.napel ? `Napel: ${snap.napel}` : ''
-          ].filter(Boolean).join(' | ')}
-        </div>` : ''}
-        
+        ${shirtStyleLine(snap)}
+
         <!-- Pant Style -->
-        ${snap && (snap.pantWaistStyle || snap.pantBottomStyle || snap.pantPocketStyle) ? `
-        <div style="margin-top:6px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
-          <strong>Pant Style:</strong>
-          ${[
-            snap.pantWaistStyle ? `Waist: ${snap.pantWaistStyle}` : '',
-            snap.pantBottomStyle ? `Bottom: ${snap.pantBottomStyle}` : '',
-            snap.pantPocketStyle ? `Pocket: ${snap.pantPocketStyle}` : ''
-          ].filter(Boolean).join(' | ')}
-        </div>` : ''}
-        
+        ${pantStyleLine(snap)}
+
         <!-- Cloth Label -->
         ${snap.clothLabel ? `
         <div style="margin-top:6px; background:#f0f0f0; padding:6px 10px; border-radius:4px;">
           <strong>Cloth Label:</strong> ${snap.clothLabel} ${snap.clothLabelOther ? `(${snap.clothLabelOther})` : ''}
         </div>` : ''}
-      </div>` : '';
+      </div>`
+  ) : '';
 
   return `
   <!DOCTYPE html>
@@ -860,6 +952,39 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         text-align:center;
       }
       .clearfix { clear:both; }
+      .cut-tag {
+        margin-top:10px;
+        padding:10px 12px;
+        border:1px dashed #888;
+        border-radius:6px;
+      }
+      .cut-tag + .cut-tag { margin-top:18px; }
+      .cut-tag-title {
+        font-weight:bold;
+        font-size:12px;
+        text-align:center;
+        letter-spacing:0.5px;
+        margin-bottom:6px;
+      }
+      .cut-tag-meta { width:100%; font-size:12px; border-collapse:collapse; margin-bottom:6px; }
+      .cut-tag-meta td { padding:1px 6px 1px 0; }
+      .cut-tag-meta td:first-child { color:#666; width:80px; }
+      .cut-tag-heading {
+        font-weight:bold;
+        font-size:11px;
+        text-align:center;
+        background:#f0f0f0;
+        padding:3px;
+        border-radius:3px;
+        margin-bottom:4px;
+      }
+      .cut-tag-delivery {
+        margin-top:8px;
+        font-size:12px;
+        text-align:center;
+        border-top:1px dashed #ccc;
+        padding-top:6px;
+      }
       @media print {
         body { background:white; padding:10px; }
         .bill-container { box-shadow:none; padding:10px; }
@@ -908,6 +1033,13 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
           <td class="label">Mobile:</td>
           <td>${bill.customerPhone || '-'}</td>
         </tr>
+        ${dressName || deliveryDateStr ? `
+        <tr>
+          <td class="label">Dress Name:</td>
+          <td><strong>${dressName || '-'}</strong></td>
+          <td class="label">Delivery Date:</td>
+          <td><strong>${deliveryDateStr || '-'}</strong></td>
+        </tr>` : ''}
       </table>
 
       <!-- PRICING SECTION (hidden on Tailor/Cutting Copy) -->
