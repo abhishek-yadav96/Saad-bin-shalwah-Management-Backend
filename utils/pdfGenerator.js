@@ -1089,11 +1089,12 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
       <!-- MEASUREMENTS SECTION (hidden on Customer Copy) -->
       ${measurementsBlockHTML}
 
-      <!-- QR CODE BLOCK -->
+      <!-- QR CODE BLOCK — sirf Customer Copy (ya copyLabel na ho) par, Tailor/Cutting Copy par nahi -->
+      ${!isTailorCopy ? `
       <div class="qr-block">
         ${qrImage}
         <div class="qr-label">Scan to view this bill online</div>
-      </div>
+      </div>` : ''}
 
       <div class="footer">
         ${shopSettings.thankYouMessage || 'Thank you for your business! We look forward to serving you again.'}
