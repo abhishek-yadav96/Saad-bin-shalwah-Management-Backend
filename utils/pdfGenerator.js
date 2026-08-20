@@ -712,15 +712,12 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         <div class="cut-tag-title">${partLabel}</div>
         <div class="id-highlight-row">
           <div class="id-highlight-box">
-            <span class="id-highlight-label">BILL NO.</span>
-            <span class="id-highlight-value">${bill.billNumber}</span>
-          </div>
-          <div class="id-highlight-box">
             <span class="id-highlight-label">ORDER NO.</span>
             <span class="id-highlight-value">${bill.orderNumber || '-'}</span>
           </div>
         </div>
         <table class="cut-tag-meta">
+          <tr><td>Bill No:</td><td>${bill.billNumber}</td></tr>
           ${dressName ? `<tr><td>Dress Name:</td><td><strong>${dressName}</strong></td></tr>` : ''}
         </table>
         <div class="cut-tag-heading">MEASUREMENTS</div>
@@ -1052,10 +1049,6 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
 
       <div class="id-highlight-row">
         <div class="id-highlight-box">
-          <span class="id-highlight-label">BILL NO.</span>
-          <span class="id-highlight-value">${bill.billNumber}</span>
-        </div>
-        <div class="id-highlight-box">
           <span class="id-highlight-label">ORDER NO.</span>
           <span class="id-highlight-value">${bill.orderNumber || '-'}</span>
         </div>
@@ -1063,16 +1056,20 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
 
       <table class="meta">
         <tr>
+          <td class="label">Bill No:</td>
+          <td>${bill.billNumber}</td>
           <td class="label">Date:</td>
           <td>${moment(bill.billDate).format('DD MMM YYYY')}</td>
+        </tr>
+        <tr>
           <td class="label">Time:</td>
           <td>${moment(bill.billDate).format('hh:mm A')}</td>
+          <td class="label">Mobile:</td>
+          <td>${bill.customerPhone || '-'}</td>
         </tr>
         <tr>
           <td class="label">Customer:</td>
-          <td><strong>${bill.customerName}</strong></td>
-          <td class="label">Mobile:</td>
-          <td>${bill.customerPhone || '-'}</td>
+          <td colspan="3"><strong>${bill.customerName}</strong></td>
         </tr>
         ${dressName || deliveryDateStr ? `
         <tr>

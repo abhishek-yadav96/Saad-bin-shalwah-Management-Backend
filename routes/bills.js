@@ -47,11 +47,13 @@ router.get('/', protect, async (req, res) => {
     }
     if (copyLabel) query.copyLabel = copyLabel;
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       andConditions.push({
         $or: [
-          { customerName: { $regex: search, $options: 'i' } },
-          { billNumber: { $regex: search, $options: 'i' } },
-          { customerPhone: { $regex: search, $options: 'i' } }
+          { customerName: { $regex: escapedSearch, $options: 'i' } },
+          { billNumber: { $regex: escapedSearch, $options: 'i' } },
+          { orderNumber: { $regex: escapedSearch, $options: 'i' } },
+          { customerPhone: { $regex: escapedSearch, $options: 'i' } }
         ]
       });
     }

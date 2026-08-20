@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const Customer = require('../models/Customer');
+const Bill = require('../models/Bill');
 const { protect } = require('../middleware/auth');
 const cloudinary = require('../config/cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -55,39 +56,47 @@ router.get('/', protect, async (req, res) => {
     // ── BUILD SEARCH QUERY ──
     if (search && search.trim() !== '') {
       const searchTerm = search.trim();
-      
-      // Check if it's a number (could be phone or order number)
+      const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      // Check if it's a number (could be phone or order/bill number) or looks
+      // like an order/bill number format (e.g. "ORD-1022", partial typing ok)
       const isNumeric = /^\d+$/.test(searchTerm);
-      const isOrderFormat = /^ORD-\d+$/i.test(searchTerm);
-      
+      const looksLikeOrderOrBillNumber = isNumeric || /^ord-?\d*$/i.test(searchTerm);
+
+      // ── Order/Bill Number actually lives on the Bill collection, not on
+      // Customer — look it up there and pull in the linked customer IDs ──
+      let orderMatchedCustomerIds = [];
+      if (looksLikeOrderOrBillNumber) {
+        const matchingBills = await Bill.find({
+          $or: [
+            { orderNumber: { $regex: escaped, $options: 'i' } },
+            { billNumber: { $regex: escaped, $options: 'i' } },
+          ],
+        }).select('customer').lean();
+        orderMatchedCustomerIds = matchingBills.map((b) => b.customer).filter(Boolean);
+      }
+
       if (isNumeric) {
-        // Search by phone OR measurement index
+        // Phone number OR a numeric order/bill number
         searchQuery = {
           $or: [
-            { phone: { $regex: searchTerm, $options: 'i' } },
-            // Search in measurements by index (if user searches "1" for first order)
-            { 'measurements._id': searchTerm },
-            { 'measurements.fullNameLabel': { $regex: searchTerm, $options: 'i' } }
+            { phone: { $regex: escaped, $options: 'i' } },
+            { _id: { $in: orderMatchedCustomerIds } },
           ]
         };
-      } else if (isOrderFormat) {
-        // Search by order number in measurements (store in extraInformation or generate)
-        searchQuery = {
-          $or: [
-            { 'measurements.extraInformation': { $regex: searchTerm, $options: 'i' } },
-            { 'measurements.fullNameLabel': { $regex: searchTerm, $options: 'i' } }
-          ]
-        };
+      } else if (looksLikeOrderOrBillNumber) {
+        // e.g. "ORD-1022"
+        searchQuery = { _id: { $in: orderMatchedCustomerIds } };
       } else {
         // Normal text search
         searchQuery = {
           $or: [
-            { name: { $regex: searchTerm, $options: 'i' } },
-            { phone: { $regex: searchTerm, $options: 'i' } },
-            { city: { $regex: searchTerm, $options: 'i' } },
-            { 'measurements.fullNameLabel': { $regex: searchTerm, $options: 'i' } },
-            { 'measurements.orderType': { $regex: searchTerm, $options: 'i' } },
-            { 'measurements.type': { $regex: searchTerm, $options: 'i' } }
+            { name: { $regex: escaped, $options: 'i' } },
+            { phone: { $regex: escaped, $options: 'i' } },
+            { city: { $regex: escaped, $options: 'i' } },
+            { 'measurements.fullNameLabel': { $regex: escaped, $options: 'i' } },
+            { 'measurements.orderType': { $regex: escaped, $options: 'i' } },
+            { 'measurements.type': { $regex: escaped, $options: 'i' } }
           ]
         };
       }

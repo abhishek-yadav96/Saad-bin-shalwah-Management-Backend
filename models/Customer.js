@@ -16,7 +16,7 @@ const measurementSchema = new mongoose.Schema({
     type: String,
     enum: [
       'Kuliya Harbia', 'Kuliya Amnia', 'Jesh Mahua', 'Jesh Maktabi',
-      'Amnia Maktabi', 'Haras Watni', 'Haras Maktabi', 'J11', 'Haras Malki',
+      'Amnia Maktabi', 'Haras Watni', 'Haras Maktabi', '911', 'Haras Malki',
       'Maidani', 'Haras Hadud', 'Aman Munshat', 'Mukhadarat', 'Sujun',
       'Tairan', 'Aman Bee', 'Jawzat Mahua', 'Jawzat Maktabi', 'Zaiti Sayana',
       'Afwaz Amnia', 'Diblomasi', 'Aman Humaya', 'Aman Humaya Maktabi',
