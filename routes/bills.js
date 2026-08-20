@@ -38,15 +38,24 @@ const generateOrderNumber = async () => {
 // @GET /api/bills
 router.get('/', protect, async (req, res) => {
   try {
-    const { search, status, startDate, endDate, page = 1, limit = 20 } = req.query;
+    const { search, status, startDate, endDate, page = 1, limit = 20, billGroupId, copyLabel } = req.query;
     let query = {};
-    if (search) {
-      query.$or = [
-        { customerName: { $regex: search, $options: 'i' } },
-        { billNumber: { $regex: search, $options: 'i' } },
-        { customerPhone: { $regex: search, $options: 'i' } }
-      ];
+    const andConditions = [];
+    // ── Fetch sibling copies of a bill (e.g. to reprint just the Tailor/Cutting Copy) ──
+    if (billGroupId) {
+      andConditions.push({ $or: [{ billGroupId }, { _id: billGroupId }] });
     }
+    if (copyLabel) query.copyLabel = copyLabel;
+    if (search) {
+      andConditions.push({
+        $or: [
+          { customerName: { $regex: search, $options: 'i' } },
+          { billNumber: { $regex: search, $options: 'i' } },
+          { customerPhone: { $regex: search, $options: 'i' } }
+        ]
+      });
+    }
+    if (andConditions.length) query.$and = andConditions;
     if (status && status !== 'all') query.status = status;
     if (startDate || endDate) {
       query.billDate = {};

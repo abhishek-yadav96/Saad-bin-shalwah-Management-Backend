@@ -527,6 +527,7 @@ function measurementBlockHTML(m) {
     if (m.pleats) styles.push(`Pleats: ${m.pleats}`);
     if (m.chestStyle) styles.push(`Chest: ${m.chestStyle}`);
     if (m.napel) styles.push(`Napel: ${m.napel}`);
+    if (m.kalarPoint) styles.push(`Kalar Point: ${m.kalarPoint}`);
     if (styles.length === 0) return '';
     return `<div style="margin-top:4px; font-size:11px; color:#555;"><strong>Shirt Style:</strong> ${styles.join(' | ')}</div>`;
   }
@@ -677,7 +678,8 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
       m.cuffStyle ? `Cuff: ${m.cuffStyle}` : '',
       m.pleats ? `Pleats: ${m.pleats}` : '',
       m.chestStyle ? `Chest: ${m.chestStyle}` : '',
-      m.napel ? `Napel: ${m.napel}` : ''
+      m.napel ? `Napel: ${m.napel}` : '',
+      m.kalarPoint ? `Kalar Point: ${m.kalarPoint}` : ''
     ].filter(Boolean).join(' | ');
     return parts ? `<div style="margin-top:4px; font-size:11px; color:#555;"><strong>Shirt Style:</strong> ${parts}</div>` : '';
   }
@@ -708,9 +710,17 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
     return `
       <div class="cut-tag">
         <div class="cut-tag-title">${partLabel}</div>
+        <div class="id-highlight-row">
+          <div class="id-highlight-box">
+            <span class="id-highlight-label">BILL NO.</span>
+            <span class="id-highlight-value">${bill.billNumber}</span>
+          </div>
+          <div class="id-highlight-box">
+            <span class="id-highlight-label">ORDER NO.</span>
+            <span class="id-highlight-value">${bill.orderNumber || '-'}</span>
+          </div>
+        </div>
         <table class="cut-tag-meta">
-          <tr><td>Bill:</td><td><strong>${bill.billNumber}</strong></td></tr>
-          <tr><td>Order:</td><td><strong>${bill.orderNumber || '-'}</strong></td></tr>
           ${dressName ? `<tr><td>Dress Name:</td><td><strong>${dressName}</strong></td></tr>` : ''}
         </table>
         <div class="cut-tag-heading">MEASUREMENTS</div>
@@ -852,10 +862,36 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         letter-spacing:0.5px;
         border-radius:20px;
       }
-      .meta { 
-        width:100%; 
-        font-size:14px; 
-        margin-bottom:15px; 
+      .id-highlight-row {
+        display:flex;
+        gap:10px;
+        margin-bottom:14px;
+      }
+      .id-highlight-box {
+        flex:1;
+        background:#fff3cd;
+        border:2px solid #f59e0b;
+        border-radius:8px;
+        padding:6px 10px;
+        text-align:center;
+      }
+      .id-highlight-label {
+        display:block;
+        font-size:10px;
+        font-weight:700;
+        letter-spacing:0.5px;
+        color:#92400e;
+      }
+      .id-highlight-value {
+        display:block;
+        font-size:20px;
+        font-weight:800;
+        color:#111;
+      }
+      .meta {
+        width:100%;
+        font-size:14px;
+        margin-bottom:15px;
         border-collapse:collapse;
       }
       .meta td { 
@@ -1014,13 +1050,18 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         ${copyLabel ? `<div><span class="copy-label">${copyLabel}</span></div>` : ''}
       </div>
 
+      <div class="id-highlight-row">
+        <div class="id-highlight-box">
+          <span class="id-highlight-label">BILL NO.</span>
+          <span class="id-highlight-value">${bill.billNumber}</span>
+        </div>
+        <div class="id-highlight-box">
+          <span class="id-highlight-label">ORDER NO.</span>
+          <span class="id-highlight-value">${bill.orderNumber || '-'}</span>
+        </div>
+      </div>
+
       <table class="meta">
-        <tr>
-          <td class="label">Bill No:</td>
-          <td><strong>${bill.billNumber}</strong></td>
-          <td class="label">Order No:</td>
-          <td><strong>${bill.orderNumber || '-'}</strong></td>
-        </tr>
         <tr>
           <td class="label">Date:</td>
           <td>${moment(bill.billDate).format('DD MMM YYYY')}</td>

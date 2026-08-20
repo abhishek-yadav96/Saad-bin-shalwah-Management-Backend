@@ -15,8 +15,12 @@ const measurementSchema = new mongoose.Schema({
   clothLabel: {
     type: String,
     enum: [
-      'Air Forces', 'Military Academy', 'Missile Forces', 'Naval Forces',
-      'National Guard', 'Security', 'Police', 'Fire Police', 'Other'
+      'Kuliya Harbia', 'Kuliya Amnia', 'Jesh Mahua', 'Jesh Maktabi',
+      'Amnia Maktabi', 'Haras Watni', 'Haras Maktabi', 'J11', 'Haras Malki',
+      'Maidani', 'Haras Hadud', 'Aman Munshat', 'Mukhadarat', 'Sujun',
+      'Tairan', 'Aman Bee', 'Jawzat Mahua', 'Jawzat Maktabi', 'Zaiti Sayana',
+      'Afwaz Amnia', 'Diblomasi', 'Aman Humaya', 'Aman Humaya Maktabi',
+      'Mujahidin', 'Other'
     ],
   },
   clothLabelOther: { type: String },
@@ -78,6 +82,10 @@ const measurementSchema = new mongoose.Schema({
     type: String,
     enum: ['Velcro Complete', 'Wing Velcro', 'Left Velcro'],
     default: 'Velcro Complete',
+  },
+  kalarPoint: {
+    type: String,
+    enum: ['2.50', '2.75', '3', '3.25', '3.50'],
   },
 
   // ── Pant Style Options (UPDATED) ──
