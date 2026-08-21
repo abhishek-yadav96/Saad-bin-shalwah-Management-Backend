@@ -31,14 +31,9 @@ router.get('/stats', protect, async (req, res) => {
 
     const todaySales = todayBills.reduce((sum, b) => sum + b.advancePaid, 0);
     const monthRevenue = monthBills.reduce((sum, b) => sum + b.total, 0);
-
-    // ── Quick Sale stats: profit/loss + units sold today (product items only) ──
-    const todayQuickSaleBills = todayBills.filter((b) => b.isQuickSale);
-    const todayProfit = todayQuickSaleBills.reduce((sum, b) => sum + b.calcProfit(), 0);
-    const todayProductsSold = todayQuickSaleBills.reduce(
-      (sum, b) => sum + b.items.reduce((s, i) => s + (i.itemType === 'product' ? i.quantity : 0), 0),
-      0
-    );
+    // Quick Sale's own profit/loss/units figures live in GET /api/quicksale/dashboard,
+    // which nets out returns per line item — kept out of this general-purpose endpoint
+    // so there's a single source of truth for that calculation.
 
     res.json({
       success: true,
@@ -46,8 +41,6 @@ router.get('/stats', protect, async (req, res) => {
         totalCustomers,
         pendingOrders: pendingBills,
         todaySales,
-        todayProfit,
-        todayProductsSold,
         monthRevenue,
         lowStockCount: lowStockProducts.length,
         lowStockProducts,

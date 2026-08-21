@@ -12,25 +12,37 @@ function summarize(bills) {
   const paymentWise = {}; // method -> { count, revenue }
 
   for (const bill of bills) {
-    revenue += bill.total;
-    const billProfit = bill.calcProfit();
-    if (billProfit >= 0) profit += billProfit;
-    else loss += Math.abs(billProfit);
-
     const method = bill.paymentType || 'Other';
     if (!paymentWise[method]) paymentWise[method] = { count: 0, revenue: 0 };
     paymentWise[method].count += 1;
-    paymentWise[method].revenue += bill.total;
 
+    let billRevenue = 0;
+
+    // ── Profit/loss computed per line item (not per bill), net of any returns ──
+    // ── already recorded against that item — a bill can mix a profitable item ──
+    // ── with one sold at a loss, and a partial return should reduce both. ──
     for (const item of bill.items) {
       if (item.itemType !== 'product') continue;
-      unitsSold += item.quantity;
+      const effectiveQty = item.quantity - (item.returnedQty || 0);
+      if (effectiveQty <= 0) continue;
+
+      const effectiveTotal = item.price * effectiveQty;
+      const itemProfit = effectiveTotal - (item.purchasePrice || 0) * effectiveQty;
+
+      unitsSold += effectiveQty;
+      billRevenue += effectiveTotal;
+      if (itemProfit >= 0) profit += itemProfit;
+      else loss += Math.abs(itemProfit);
+
       const id = item.productId ? item.productId.toString() : item.description;
       if (!productWise[id]) productWise[id] = { name: item.description, qty: 0, revenue: 0, profit: 0 };
-      productWise[id].qty += item.quantity;
-      productWise[id].revenue += item.total || 0;
-      productWise[id].profit += (item.total || 0) - (item.purchasePrice || 0) * item.quantity;
+      productWise[id].qty += effectiveQty;
+      productWise[id].revenue += effectiveTotal;
+      productWise[id].profit += itemProfit;
     }
+
+    revenue += billRevenue;
+    paymentWise[method].revenue += billRevenue;
   }
 
   return {
