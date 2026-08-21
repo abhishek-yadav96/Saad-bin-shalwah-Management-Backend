@@ -7,7 +7,7 @@ const settingsSchema = new mongoose.Schema({
   shopPhone: { type: String, default: '+971 50 123 4567' },
   shopEmail: { type: String },
   vatPercent: { type: Number, default: 0 },
-  currency: { type: String, default: 'SAR' },
+  currency: { type: String, default: 'INR' },
   
   // ── Bill Number Settings ──
   billNumberFormat: { type: String, enum: ['manual', 'auto'], default: 'auto' },

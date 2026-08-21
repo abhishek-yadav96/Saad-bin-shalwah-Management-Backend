@@ -4,12 +4,15 @@ const billItemSchema = new mongoose.Schema({
   description: { type: String, required: true },
   itemType: { type: String, enum: ['stitching', 'product'], default: 'stitching' },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+  size: { type: String }, // variant size sold, e.g. "M" — only for itemType 'product'
   quantity: { type: Number, required: true, default: 1 },
 
   // purchasePrice kabhi bhi bill ke customer-facing render (pdfGenerator) me nahi jaayega
   purchasePrice: { type: Number, default: 0 },
-  price: { type: Number, required: true },   // sell price — customer ko dikhta hai
+  price: { type: Number, required: true },   // final sell price (post-discount) — customer ko dikhta hai
+  discountAmount: { type: Number, default: 0 }, // per-unit discount, record-only (price is already net)
   total: { type: Number },
+  returnedQty: { type: Number, default: 0 }, // cumulative quantity returned against this line
 });
 
 const billSchema = new mongoose.Schema({
@@ -58,7 +61,7 @@ const billSchema = new mongoose.Schema({
   isDelivered: { type: Boolean, default: false },
   deliveredAt: { type: Date },
 
-  paymentType: { type: String, enum: ['Cash', 'Online'], default: 'Online' }, // FIX #20
+  paymentType: { type: String, enum: ['Cash', 'Online', 'UPI', 'Card', 'Other'], default: 'Online' }, // FIX #20
 
   qrCode: { type: String },
   emailSent: { type: Boolean, default: false },
@@ -66,6 +69,8 @@ const billSchema = new mongoose.Schema({
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   salesperson: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // FIX #28
 }, { timestamps: true });
+
+billSchema.index({ billDate: -1, isQuickSale: 1 });
 
 billSchema.pre('save', function (next) {
   this.subtotal = this.items.reduce((sum, item) => {

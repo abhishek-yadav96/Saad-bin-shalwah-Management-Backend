@@ -4,6 +4,7 @@ const QRCode = require('qrcode');
 const Bill = require('../models/Bill');
 const Product = require('../models/Product');
 const Settings = require('../models/Settings');
+const InventoryMovement = require('../models/InventoryMovement');
 const { protect } = require('../middleware/auth');
 const { generatePDF } = require('../utils/pdfGenerator');
 const { sendBillEmail } = require('../utils/emailService');
@@ -127,6 +128,11 @@ router.post('/', protect, async (req, res) => {
     }
     billData.createdBy = req.user._id;
 
+    // ── Quick Sale bill = the only copy, so it IS the Customer Copy ──
+    if (billData.isQuickSale) {
+      billData.copyLabel = 'Customer Copy';
+    }
+
     // ── Generate Order Number ──
     const orderNumber = await generateOrderNumber();
     billData.orderNumber = orderNumber;
@@ -137,8 +143,72 @@ router.post('/', protect, async (req, res) => {
     billData.qrCode = qrCode;
     billData.qrUrl = `${backendUrl}/bill/${Date.now()}`;
 
-    // ── Create MAIN bill ──
-    const mainBill = await Bill.create(billData);
+    // ── Deduct stock for products BEFORE creating the bill — each deduction ──
+    // ── is atomic and guarded by available quantity, so a sale can never ──
+    // ── oversell a product or a specific size. ──
+    const deductedMovements = []; // { productId, productName, size, quantity, previousQty, newQty }
+    const rollbackStock = async () => {
+      for (const m of deductedMovements) {
+        if (m.size) {
+          await Product.updateOne(
+            { _id: m.productId, 'variants.size': m.size },
+            { $inc: { 'variants.$.stockQty': m.quantity, stockQty: m.quantity } }
+          );
+        } else {
+          await Product.findByIdAndUpdate(m.productId, { $inc: { stockQty: m.quantity } });
+        }
+      }
+    };
+
+    for (const item of billData.items) {
+      if (item.itemType !== 'product' || !item.productId) continue;
+      const qty = item.quantity || 0;
+      let updated;
+      if (item.size) {
+        updated = await Product.findOneAndUpdate(
+          { _id: item.productId, 'variants.size': item.size, 'variants.stockQty': { $gte: qty } },
+          { $inc: { 'variants.$.stockQty': -qty, stockQty: -qty } },
+          { new: false }
+        );
+      } else {
+        updated = await Product.findOneAndUpdate(
+          { _id: item.productId, stockQty: { $gte: qty } },
+          { $inc: { stockQty: -qty } },
+          { new: false }
+        );
+      }
+      if (!updated) {
+        await rollbackStock();
+        const product = await Product.findById(item.productId);
+        const available = item.size
+          ? (product?.variants?.find((v) => v.size === item.size)?.stockQty ?? 0)
+          : (product?.stockQty ?? 0);
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for "${item.description}"${item.size ? ` (${item.size})` : ''} — only ${available} available`,
+        });
+      }
+      const previousQty = item.size
+        ? (updated.variants.find((v) => v.size === item.size)?.stockQty ?? 0)
+        : updated.stockQty;
+      deductedMovements.push({
+        productId: item.productId,
+        productName: updated.name,
+        size: item.size || null,
+        quantity: qty,
+        previousQty,
+        newQty: previousQty - qty,
+      });
+    }
+
+    // ── Create MAIN bill (roll back stock if this fails) ──
+    let mainBill;
+    try {
+      mainBill = await Bill.create(billData);
+    } catch (createErr) {
+      await rollbackStock();
+      throw createErr;
+    }
 
     // ── Update main bill with correct QR URL ──
     const actualUrl = `${backendUrl}/bill/${mainBill._id}`;
@@ -147,13 +217,20 @@ router.post('/', protect, async (req, res) => {
     mainBill.qrUrl = actualUrl;
     await mainBill.save();
 
-    // ── Deduct stock for products ──
-    for (const item of mainBill.items) {
-      if (item.itemType === 'product' && item.productId) {
-        await Product.findByIdAndUpdate(item.productId, {
-          $inc: { stockQty: -item.quantity }
-        });
-      }
+    // ── Record inventory movements for the deducted stock ──
+    if (deductedMovements.length > 0) {
+      await InventoryMovement.insertMany(deductedMovements.map((m) => ({
+        product: m.productId,
+        productName: m.productName,
+        size: m.size,
+        previousQty: m.previousQty,
+        changeQty: -m.quantity,
+        newQty: m.newQty,
+        reason: billData.isQuickSale ? 'Quick Sale' : 'Bill item sold',
+        referenceType: 'sale',
+        referenceId: mainBill._id,
+        createdBy: req.user._id,
+      })));
     }
 
     let allBills = [mainBill];
@@ -214,7 +291,7 @@ router.post('/', protect, async (req, res) => {
           shopAddress: settings.shopAddress,
           shopPhone: settings.shopPhone,
           shopEmail: settings.shopEmail,
-          currency: settings.currency || 'SAR',
+          currency: settings.currency || 'INR',
           thankYouMessage: settings.thankYouMessage
         });
         populatedBill.customerEmail = customerEmailInput;
@@ -295,7 +372,7 @@ router.post('/:id/send-email', protect, async (req, res) => {
       shopAddress: settings.shopAddress,
       shopPhone: settings.shopPhone,
       shopEmail: settings.shopEmail,
-      currency: settings.currency || 'AED',
+      currency: settings.currency || 'INR',
       thankYouMessage: settings.thankYouMessage
     });
 
@@ -325,7 +402,7 @@ router.get('/:id/pdf', protect, async (req, res) => {
       shopAddress: settings.shopAddress,
       shopPhone: settings.shopPhone,
       shopEmail: settings.shopEmail,
-      currency: settings.currency || 'AED',
+      currency: settings.currency || 'INR',
       thankYouMessage: settings.thankYouMessage
     });
 
