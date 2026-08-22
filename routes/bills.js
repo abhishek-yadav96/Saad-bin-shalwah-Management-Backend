@@ -153,6 +153,7 @@ router.post('/', protect, async (req, res) => {
     // kiya ja raha ho to purana orderNumber hi reuse karo — naya number
     // sirf customer ke bilkul naye measurement/dress ke liye bane. ──
     let orderNumber;
+    let isNewOrder = true;
     if (billData.measurementId) {
       const existingOrderBill = await Bill.findOne({
         measurementId: billData.measurementId,
@@ -160,6 +161,7 @@ router.post('/', protect, async (req, res) => {
       }).sort({ createdAt: -1 });
       if (existingOrderBill && existingOrderBill.orderNumber) {
         orderNumber = existingOrderBill.orderNumber;
+        isNewOrder = false;
       }
     }
     if (!orderNumber) {
@@ -343,12 +345,13 @@ router.post('/', protect, async (req, res) => {
       }
     }
 
-    res.status(201).json({ 
-      success: true, 
-      bill: mainBill, 
-      bills: allBills, 
+    res.status(201).json({
+      success: true,
+      bill: mainBill,
+      bills: allBills,
       orderNumber,
-      emailSent 
+      isNewOrder,
+      emailSent
     });
     
   } catch (err) {
