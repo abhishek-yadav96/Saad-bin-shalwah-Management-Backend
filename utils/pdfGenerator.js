@@ -718,11 +718,12 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
         </div>
         <table class="cut-tag-meta">
           <tr><td>Bill No:</td><td>${bill.billNumber}</td></tr>
+          <tr><td>Delivery Date:</td><td><strong>${deliveryDateStr || '-'}</strong></td></tr>
           ${dressName ? `<tr><td>Dress Name:</td><td><strong>${dressName}</strong></td></tr>` : ''}
         </table>
         <div class="cut-tag-heading">MEASUREMENTS</div>
         ${bodyHTML}
-        ${deliveryDateStr ? `<div class="cut-tag-delivery">Delivery Date: <strong>${deliveryDateStr}</strong></div>` : ''}
+        <div class="cut-tag-delivery">Delivery Date: <strong>${deliveryDateStr || '-'}</strong></div>
       </div>`;
   }
 
@@ -1071,13 +1072,12 @@ function generateBillHTML(bill, shopSettings, qrDataUrl) {
           <td class="label">Customer:</td>
           <td colspan="3"><strong>${bill.customerName}</strong></td>
         </tr>
-        ${dressName || deliveryDateStr ? `
         <tr>
           <td class="label">Dress Name:</td>
           <td><strong>${dressName || '-'}</strong></td>
           <td class="label">Delivery Date:</td>
           <td><strong>${deliveryDateStr || '-'}</strong></td>
-        </tr>` : ''}
+        </tr>
       </table>
 
       <!-- PRICING SECTION (hidden on Tailor/Cutting Copy) -->

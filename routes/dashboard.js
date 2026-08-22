@@ -13,6 +13,12 @@ router.get('/stats', protect, async (req, res) => {
     const todayEnd = moment().endOf('day').toDate();
     const monthStart = moment().startOf('month').toDate();
 
+    // ── Legacy auto-generated Customer/Shop/Tailor/Delivery Copy documents
+    // (billGroupId set) must never be counted as separate orders/revenue —
+    // they're internal print artifacts of an old copy-count flow, not
+    // real additional sales. ──
+    const notACopy = { billGroupId: { $exists: false } };
+
     const [
       totalCustomers,
       todayBills,
@@ -22,11 +28,11 @@ router.get('/stats', protect, async (req, res) => {
       recentBills
     ] = await Promise.all([
       Customer.countDocuments(),
-      Bill.find({ billDate: { $gte: today, $lte: todayEnd } }),
-      Bill.find({ billDate: { $gte: monthStart } }),
-      Bill.find({ status: { $in: ['pending', 'partial'] } }).countDocuments(),
+      Bill.find({ ...notACopy, billDate: { $gte: today, $lte: todayEnd } }),
+      Bill.find({ ...notACopy, billDate: { $gte: monthStart } }),
+      Bill.find({ ...notACopy, status: { $in: ['pending', 'partial'] } }).countDocuments(),
       Product.find({ isActive: true, $expr: { $lte: ['$stockQty', '$minAlertQty'] } }),
-      Bill.find().sort({ createdAt: -1 }).limit(5).populate('customer', 'name phone')
+      Bill.find(notACopy).sort({ createdAt: -1 }).limit(5).populate('customer', 'name phone')
     ]);
 
     const todaySales = todayBills.reduce((sum, b) => sum + b.advancePaid, 0);

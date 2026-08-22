@@ -45,6 +45,12 @@ router.get('/', protect, async (req, res) => {
     // ── Fetch sibling copies of a bill (e.g. to reprint just the Tailor/Cutting Copy) ──
     if (billGroupId) {
       andConditions.push({ $or: [{ billGroupId }, { _id: billGroupId }] });
+    } else {
+      // ── Default listing (Sale History etc.) must show one row per order,
+      // never the legacy auto-generated Customer/Shop/Tailor/Delivery
+      // Copy documents (each carries billGroupId) — those are internal
+      // artifacts of an old copy-count flow, not separate orders. ──
+      query.billGroupId = { $exists: false };
     }
     if (copyLabel) query.copyLabel = copyLabel;
     if (search) {
@@ -99,7 +105,17 @@ router.post('/', protect, async (req, res) => {
         message: 'Add at least one bill item',
       });
     }
-    
+
+    // ── Delivery Date is mandatory for a real order (not for Quick Sale,
+    // which has no garment/delivery) — enforced server-side too, since the
+    // app's own validation can't be trusted as the only gate. ──
+    if (!billData.isQuickSale && !billData.deliveryDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please select Delivery Date before generating the bill.',
+      });
+    }
+
     const hasEmptyDescription = billData.items.some(
       (i) => !i.description || `${i.description}`.trim() === ''
     );
@@ -236,12 +252,19 @@ router.post('/', protect, async (req, res) => {
     let allBills = [mainBill];
 
     // ═══════════════════════════════════════════════════════════════════
-    // ── FIX: Custom Copy Count (User se input aayega) ──
+    // ── Custom Copy Count (User se input aayega) ──
     // ── Default: 4 copies, Quick Sale: sirf 1 copy ──
+    // ── BUG FIX: `billData.copyCount || 4` treated an explicit 0 (sent by
+    // create_bill_screen.dart to mean "just the one main Bill document")
+    // as falsy and silently fell back to 4 — so every order kept creating
+    // 4 extra Bill docs with suffixed billNumbers (ORD1013-C/-S/-T/-D)
+    // that looked like the Order Number itself was changing/duplicating.
+    // Must check for null/undefined specifically, not truthiness. ──
     // ═══════════════════════════════════════════════════════════════════
     if (!billData.isQuickSale) {
-      // ── Get copy count from user input (default 4) ──
-      const copyCount = billData.copyCount || 4;
+      const copyCount = (billData.copyCount === undefined || billData.copyCount === null)
+        ? 4
+        : billData.copyCount;
       
       // ── Copy labels and icons ──
       const copyLabels = ['Customer Copy', 'Shop Copy', 'Tailor/Cutting Copy', 'Delivery Copy'];
@@ -291,7 +314,7 @@ router.post('/', protect, async (req, res) => {
           shopAddress: settings.shopAddress,
           shopPhone: settings.shopPhone,
           shopEmail: settings.shopEmail,
-          currency: settings.currency || 'INR',
+          currency: settings.currency || 'SAR',
           thankYouMessage: settings.thankYouMessage
         });
         populatedBill.customerEmail = customerEmailInput;
@@ -372,7 +395,7 @@ router.post('/:id/send-email', protect, async (req, res) => {
       shopAddress: settings.shopAddress,
       shopPhone: settings.shopPhone,
       shopEmail: settings.shopEmail,
-      currency: settings.currency || 'INR',
+      currency: settings.currency || 'SAR',
       thankYouMessage: settings.thankYouMessage
     });
 
@@ -402,7 +425,7 @@ router.get('/:id/pdf', protect, async (req, res) => {
       shopAddress: settings.shopAddress,
       shopPhone: settings.shopPhone,
       shopEmail: settings.shopEmail,
-      currency: settings.currency || 'INR',
+      currency: settings.currency || 'SAR',
       thankYouMessage: settings.thankYouMessage
     });
 

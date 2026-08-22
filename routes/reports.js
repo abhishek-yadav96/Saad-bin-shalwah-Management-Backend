@@ -6,6 +6,12 @@ const Product = require('../models/Product');
 const { protect, adminOnly } = require('../middleware/auth');
 const moment = require('moment');
 
+// ── Legacy auto-generated Customer/Shop/Tailor/Delivery Copy documents
+// (billGroupId set) must never be counted as separate orders/revenue —
+// they're internal print artifacts of an old copy-count flow, not real
+// additional sales. Every query below must exclude them. ──
+const notACopy = { billGroupId: { $exists: false } };
+
 // @GET /api/reports/daily
 router.get('/daily', protect, adminOnly, async (req, res) => {
   try {
@@ -13,7 +19,7 @@ router.get('/daily', protect, adminOnly, async (req, res) => {
     const start = moment(date).startOf('day').toDate();
     const end = moment(date).endOf('day').toDate();
     
-    const bills = await Bill.find({ billDate: { $gte: start, $lte: end } });
+    const bills = await Bill.find({ ...notACopy, billDate: { $gte: start, $lte: end } });
     const totalRevenue = bills.reduce((sum, b) => sum + b.total, 0);
     const totalCollected = bills.reduce((sum, b) => sum + b.advancePaid, 0);
     const totalPending = bills.reduce((sum, b) => sum + b.remaining, 0);
@@ -43,7 +49,7 @@ router.get('/monthly', protect, adminOnly, async (req, res) => {
     for (let month = 0; month < 12; month++) {
       const start = moment({ year, month }).startOf('month').toDate();
       const end = moment({ year, month }).endOf('month').toDate();
-      const bills = await Bill.find({ billDate: { $gte: start, $lte: end } });
+      const bills = await Bill.find({ ...notACopy, billDate: { $gte: start, $lte: end } });
       results.push({
         month: moment({ year, month }).format('MMM YYYY'),
         billsCount: bills.length,
@@ -66,7 +72,7 @@ router.get('/range', protect, adminOnly, async (req, res) => {
     const start = moment(startDate).startOf('day').toDate();
     const end = moment(endDate).endOf('day').toDate();
     
-    const bills = await Bill.find({ billDate: { $gte: start, $lte: end } })
+    const bills = await Bill.find({ ...notACopy, billDate: { $gte: start, $lte: end } })
       .populate('customer', 'name phone');
     
     res.json({
@@ -89,7 +95,7 @@ router.get('/range', protect, adminOnly, async (req, res) => {
 // @GET /api/reports/pending
 router.get('/pending', protect, adminOnly, async (req, res) => {
   try {
-    const bills = await Bill.find({ status: { $in: ['pending', 'partial'] } })
+    const bills = await Bill.find({ ...notACopy, status: { $in: ['pending', 'partial'] } })
       .populate('customer', 'name phone city')
       .sort({ billDate: -1 });
     
@@ -107,7 +113,7 @@ router.get('/products', protect, adminOnly, async (req, res) => {
     const lowStock = products.filter(p => p.stockQty <= p.minAlertQty);
     
     // Get product sales from bills
-    const bills = await Bill.find({});
+    const bills = await Bill.find(notACopy);
     const productSales = {};
     bills.forEach(bill => {
       bill.items.forEach(item => {
