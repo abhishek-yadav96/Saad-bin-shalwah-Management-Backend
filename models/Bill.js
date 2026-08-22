@@ -21,6 +21,11 @@ const billSchema = new mongoose.Schema({
   // ── FIX #21: order number — jo actual order/measurement se link hai ──
   orderNumber: { type: String, index: true },
 
+  // ── Same customer measurement (order) ka bill dobara print/create ho to
+  // orderNumber wahi purana hi reuse ho — naya order tabhi bane jab customer
+  // ka bilkul naya measurement/dress ho. ──
+  measurementId: { type: mongoose.Schema.Types.ObjectId, index: true },
+
   // ── FIX #24: bill ka "set" — 4 copies ek sath print, ek group id se linked ──
   billGroupId: { type: String, index: true },
   copyLabel: {

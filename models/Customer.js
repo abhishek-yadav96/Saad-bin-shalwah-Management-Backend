@@ -20,7 +20,7 @@ const measurementSchema = new mongoose.Schema({
       'Maidani', 'Haras Hadud', 'Aman Munshat', 'Mukhadarat', 'Sujun',
       'Tairan', 'Aman Bee', 'Jawzat Mahua', 'Jawzat Maktabi', 'Zaiti Sayana',
       'Afwaz Amnia', 'Diblomasi', 'Aman Humaya', 'Aman Humaya Maktabi',
-      'Mujahidin', 'Other'
+      'Mujahidin', 'Shurta', 'Murur', 'Amanlam', 'Other'
     ],
   },
   clothLabelOther: { type: String },

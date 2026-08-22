@@ -149,8 +149,22 @@ router.post('/', protect, async (req, res) => {
       billData.copyLabel = 'Customer Copy';
     }
 
-    // ── Generate Order Number ──
-    const orderNumber = await generateOrderNumber();
+    // ── Order Number: same measurement (order) ka bill dobara banaya/print
+    // kiya ja raha ho to purana orderNumber hi reuse karo — naya number
+    // sirf customer ke bilkul naye measurement/dress ke liye bane. ──
+    let orderNumber;
+    if (billData.measurementId) {
+      const existingOrderBill = await Bill.findOne({
+        measurementId: billData.measurementId,
+        billGroupId: { $exists: false },
+      }).sort({ createdAt: -1 });
+      if (existingOrderBill && existingOrderBill.orderNumber) {
+        orderNumber = existingOrderBill.orderNumber;
+      }
+    }
+    if (!orderNumber) {
+      orderNumber = await generateOrderNumber();
+    }
     billData.orderNumber = orderNumber;
 
     // ── Generate QR Code ──
